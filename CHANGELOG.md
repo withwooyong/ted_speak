@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-06-12 (세션 2) — T2 완결 + T4 Supabase (보안 민감 ted-run)
+
+- T2: 짧은 발화 벤치마크(`spike/bench.mts`) — 현행 모델+TTS 스트리밍 중앙값 3.51s ✅, gpt-4o-mini 조합 기각 (ADR-0003 갱신)
+- T4: 로컬 Supabase(Docker, 포트 553xx) — 스키마+RLS 마이그레이션, 시드, supabase-js 클라이언트, Dev Mock Auth(프로덕션 가드 포함)
+- 보안(2b 적대적 리뷰 + 1차 리뷰 교차): is_premium·streak·발화시간 위조 차단(컬럼 grant), 통계 서버 트리거 전환, **PK 셔플 farming 우회 차단**, 대화 턴 불변 로그, KST streak 경계 — RLS 공격 시나리오 33케이스 검증(`scripts/verify-rls.mts`)
+- ADR-0004(데이터 계층 — Prisma 제외·RLS 모델·CVE 예외), Phase 1 작업계획서(`docs/plans/p1-core-loop.md`)
+- 테스트 45개·커버리지 99/92/100%, E2E(웹 export, supabase 클라이언트 포함 번들) 통과
+
 ## 2026-06-12 — Phase 0 킥오프 + Foundation 1차 ted-run
 
 - HTML 프로토타입(`prototype/index.html`) — 온보딩→홈→레슨 3단계→완료→튜터/프로필 전 동선 클릭 검증, TTS 실동작

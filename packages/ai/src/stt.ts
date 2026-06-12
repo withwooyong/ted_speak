@@ -9,8 +9,17 @@ export interface AudioInput {
   mimeType?: string;
 }
 
-/** 사용자 발화 오디오 → 영어 전사 (Whisper). 교정 없이 들리는 대로 전사한다. */
-export async function transcribe(audio: AudioInput, cfg: AiClientConfig): Promise<string> {
+export interface TranscribeOptions {
+  /** 기본 whisper-1. 지연 민감 경로는 gpt-4o-mini-transcribe 검토 (ADR-0003) */
+  model?: string;
+}
+
+/** 사용자 발화 오디오 → 영어 전사. 교정 없이 들리는 대로 전사한다. */
+export async function transcribe(
+  audio: AudioInput,
+  cfg: AiClientConfig,
+  opts: TranscribeOptions = {},
+): Promise<string> {
   const { apiKey, baseUrl, fetchImpl } = resolveConfig(cfg);
 
   const blob =
@@ -22,7 +31,7 @@ export async function transcribe(audio: AudioInput, cfg: AiClientConfig): Promis
 
   const form = new FormData();
   form.append('file', blob, audio.filename ?? 'utterance.wav');
-  form.append('model', 'whisper-1');
+  form.append('model', opts.model ?? 'whisper-1');
   form.append('language', 'en');
 
   const res = await fetchImpl(`${baseUrl}/v1/audio/transcriptions`, {

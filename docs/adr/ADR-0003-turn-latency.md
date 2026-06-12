@@ -15,8 +15,14 @@
    체감 지연 = STT + LLM + TTS TTFB. 스파이크 v2 실측 3회: **3.33s / 4.22s / 4.89s (중앙값 4.22s)**.
    v1(순차 버퍼링 5.4~5.9s) 대비 1.2~1.5s 개선됐으나 **≤4s 목표는 아직 일관 달성 못 함**.
    단, 측정에 쓴 샘플 발화는 약 9초 분량으로 실제 드릴·대화 턴(2~5초)보다 길어 STT가
-   과대 측정되는 경향이 있다. Phase 1 추가 레버: 짧은 실발화 재측정, drill·대화용
-   gpt-4o-mini 검토, 녹음 업로드 병렬화.
+   과대 측정되는 경향이 있다.
+
+   **(추가 측정 2026-06-12, 짧은 발화 1.5초 샘플, spike/bench.mts)**
+   - A 현행(whisper-1 + gpt-4o + tts-1 스트리밍): **중앙값 3.51s ✅** (개별 2.44~5.51s — 변동 큼)
+   - B 저지연 후보(gpt-4o-mini-transcribe + gpt-4o-mini): 중앙값 7.02s ⚠️ — mini의 JSON 모드
+     생성이 오히려 느리고 분산 극심(최대 16s). **채택하지 않음, 현행 모델 유지.**
+   - 별도 발견: undici keep-alive 스톨로 TTS HeadersTimeout 2회 관측 → **클라이언트에
+     타임아웃·재시도 필수** (Phase 1 과제, PLAN §13 네트워크 리스크와 연계).
 2. **LLM 응답 길이 cap** — `max_tokens: 220` + "max 2 sentences" 프롬프트. 지연·비용 동시 관리.
 3. **Drill(Step 2) 채점은 LLM을 쓰지 않는다** — `scoreDrill()` 로컬 keyWords 매칭(0ms).
    LLM 교정은 Conversation(Step 3)에서만 사용한다.
