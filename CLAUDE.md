@@ -15,6 +15,11 @@ npm run test:coverage   # 커버리지 게이트 (lines/branches/functions 80%)
 npm run validate:content # 시드 콘텐츠 스키마 검증만
 npm run spike           # AI 1턴 E2E 스파이크 (OPENAI_API_KEY 필요)
 npm run mobile          # Expo dev 서버 (apps/mobile)
+
+# Supabase 로컬 (Docker 필요, 포트 553xx — ted_duolingo의 543xx와 충돌 회피)
+supabase start                    # 로컬 스택 기동
+supabase db reset                 # 마이그레이션 + 시드 적용
+npx tsx scripts/verify-rls.mts    # RLS 공격 시나리오 33케이스 검증 (로컬 전용)
 ```
 
 ## 프로젝트 개요
