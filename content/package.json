@@ -1,10 +1,10 @@
 {
-  "name": "@ted-speak/shared",
+  "name": "@ted-speak/content",
   "version": "0.1.0",
   "private": true,
   "main": "index.ts",
   "types": "index.ts",
   "dependencies": {
-    "zod": "^4.4.3"
+    "@ted-speak/shared": "*"
   }
 }

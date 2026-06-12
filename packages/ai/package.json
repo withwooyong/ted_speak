@@ -5,6 +5,9 @@
   "main": "index.ts",
   "types": "index.ts",
   "scripts": {
-    "spike": "node spike/one-turn.mjs"
+    "spike": "tsx spike/one-turn.mts"
+  },
+  "dependencies": {
+    "@ted-speak/shared": "*"
   }
 }

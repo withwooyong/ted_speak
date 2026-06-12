@@ -2,10 +2,25 @@
   "name": "ted-speak",
   "private": true,
   "version": "0.1.0",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "content"
+  ],
   "scripts": {
     "mobile": "npm run start -w talkted-mobile",
     "typecheck": "tsc --noEmit -p apps/mobile",
-    "spike": "node packages/ai/spike/one-turn.mjs"
+    "spike": "npm run spike -w @ted-speak/ai",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "validate:content": "vitest run packages/shared/test/content-schema.test.ts",
+    "lint": "npm run lint -w talkted-mobile",
+    "ci": "npm run typecheck && npm run lint && npm run test:coverage"
+  },
+  "devDependencies": {
+    "@vitest/coverage-istanbul": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.8",
+    "tsx": "^4.22.4",
+    "vitest": "^4.1.8"
   }
 }

@@ -1,3 +1,4 @@
+import { courses } from '@ted-speak/content';
 import { colors, radius } from '@ted-speak/shared';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -8,6 +9,19 @@ export default function Home() {
   const router = useRouter();
   const { streak, xp } = useUserStore();
 
+  // MVP: 첫 코스의 첫 미완료 레슨 = 오늘의 레슨 (진행 저장은 T4 이후)
+  const course = courses.at(0);
+  const lesson = course?.lessons.at(0);
+
+  if (!course || !lesson) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.greet}>레슨을 불러오지 못했어요</Text>
+        <Text style={styles.softNote}>콘텐츠가 비어 있어요. 앱을 다시 시작해보세요.</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.topRow}>
@@ -17,11 +31,13 @@ export default function Home() {
         </View>
       </View>
 
-      <Text style={styles.sectionLabel}>오늘의 레슨</Text>
-      <Pressable style={styles.lessonCard} onPress={() => router.push('/lesson/lesson-003')}>
-        <Text style={styles.badge}>LESSON 3 · 약 5분</Text>
-        <Text style={styles.lessonTitle}>취미 말하기</Text>
-        <Text style={styles.lessonEn}>Talking about what you love</Text>
+      <Text style={styles.sectionLabel}>오늘의 레슨 — {course.title}</Text>
+      <Pressable style={styles.lessonCard} onPress={() => router.push(`/lesson/${lesson.id}`)}>
+        <Text style={styles.badge}>
+          LESSON {lesson.order} · 약 {lesson.estimatedMinutes}분
+        </Text>
+        <Text style={styles.lessonTitle}>{lesson.title}</Text>
+        <Text style={styles.lessonEn}>{lesson.titleEn}</Text>
       </Pressable>
 
       <Text style={styles.softNote}>무료 플랜은 하루 1개 레슨을 학습할 수 있어요. (XP {xp})</Text>
