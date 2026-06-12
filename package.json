@@ -1,0 +1,11 @@
+{
+  "name": "ted-speak",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "mobile": "npm run start -w talkted-mobile",
+    "typecheck": "tsc --noEmit -p apps/mobile",
+    "spike": "node packages/ai/spike/one-turn.mjs"
+  }
+}

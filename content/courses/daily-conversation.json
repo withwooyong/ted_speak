@@ -1,0 +1,35 @@
+{
+  "id": "course-daily-001",
+  "title": "일상 회화 첫걸음",
+  "level": "A2",
+  "order": 1,
+  "description": "인사, 자기소개, 취미 — 매일 쓰는 표현부터 입을 풀어요.",
+  "lessons": [
+    {
+      "id": "lesson-003",
+      "order": 3,
+      "title": "취미 말하기",
+      "titleEn": "Talking about what you love",
+      "estimatedMinutes": 5,
+      "keyPhrases": [
+        { "en": "I'm really into hiking.", "ko": "저는 등산에 푹 빠져 있어요." },
+        { "en": "In my free time, I like listening to music.", "ko": "여가 시간에는 음악 듣는 걸 좋아해요." },
+        { "en": "How about you?", "ko": "당신은 어때요? — 대화를 이어가는 마법의 한마디" }
+      ],
+      "drills": [
+        { "text": "I'm really into hiking.", "ko": "저는 등산에 푹 빠져 있어요.", "keyWords": ["really", "into", "hiking"] },
+        { "text": "How about you?", "ko": "당신은 어때요?", "keyWords": ["how", "about", "you"] },
+        { "text": "I like listening to music.", "ko": "저는 음악 듣는 걸 좋아해요.", "keyWords": ["like", "listening", "music"] }
+      ],
+      "conversation": {
+        "topic": "The user just learned hobby expressions. Ask about their hobbies and free time. Encourage them to use 'really into' and 'I like ~ing'.",
+        "openingLine": "Hi! Great drills today. So, what are you into these days?",
+        "targetTurns": 4,
+        "hints": [
+          "요즘 빠져 있는 취미를 말해보세요 — I'm really into ...",
+          "다른 취미도 말해보세요 — I like ..."
+        ]
+      }
+    }
+  ]
+}
