@@ -2,7 +2,7 @@
 
 > Last updated: 2026-06-13 (KST) · 세션 7
 > Branch: `main` (origin: github.com/withwooyong/ted_speak, private)
-> Latest commit: 세션 7 W4 발음(커밋 대기, **푸시 미요청**) · 직전 커밋 `9b2c922`(W3) · 직전 푸시 `59cfb74`(W2)
+> Latest commit: `52db5c3` - W4 발음 정직한 최소 범위(커밋 완료, **푸시 미요청**) · 직전 커밋 `9b2c922`(W3) · 직전 푸시 `59cfb74`(W2)
 
 ## Current Status
 
@@ -101,4 +101,4 @@ Azure 도입까지 이월(채울 정직한 데이터 없음). 신규 벤더·테
 - **발음 아키텍처(W4)**: 순수 코어(`packages/shared/src/pronunciation.ts` — assessPronunciation=scoreDrill 재사용+또렷함, assessClarity, `PronunciationAssessor` seam)+STT(`transcribeDetailed`=verbose_json→avgLogprob, 기존 transcribe 무변경)+어댑터(`transcribeUriDetailed`)+UI(DrillStep 라벨 reframe·clarity 조언). Azure 음소평가는 seam에 드롭인(phonemeScores 확장)+`pronunciation_attempts` 테이블 추가 지점(ADR-0010)
 - **제약·선호**: 커밋 한글, **푸시는 명시 요청 시에만**, StyleSheet+토큰만(인라인 hex 금지), zod z.infer 단일 출처, 새 컬럼은 grant 화이트리스트 검토, 스키마 변경은 보안 민감 ted-run. **품질 우선 — 가짜 점수/지표 출시 안 함(ADR-0010 선례)**
 - **테스트 인프라**: vitest 369개·커버리지 94.97/87.96/97.32%(게이트 80). istanbul 텍스트 리포터는 100% 커버 파일 생략(skipFull). 신규 순수 모듈은 `packages/**/src/**` 글롭으로 자동 포함(app lib는 vitest.config.ts coverage.include에 개별 등록 필요). `@ted-speak/shared` alias 제거 금지
-- **미커밋 작업**: 없음 — W4 발음 커밋 대기(이 세션, **푸시 미요청**). 커밋 후 HANDOFF 해시 부기 1줄만 미커밋(다음 세션 /handoff 시 흡수)
+- **미커밋 작업**: 없음 — W4 발음 커밋(`52db5c3`) + 인수인계 문서 갱신 커밋 완료. 이번 세션은 푸시까지 진행
