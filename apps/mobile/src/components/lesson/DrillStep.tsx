@@ -3,7 +3,7 @@
  * 채점·상태 머신 전이는 모두 부모(orchestrator)가 lesson-core/scoreDrill로 처리하고,
  * 이 컴포넌트는 표시와 입력 콜백만 담당한다(화면에 분기 로직 중복 금지).
  */
-import type { Drill } from '@ted-speak/shared';
+import type { ClarityBand, Drill } from '@ted-speak/shared';
 import { colors, font, radius } from '@ted-speak/shared';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -11,12 +11,22 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MicOrb } from './MicOrb';
 
 export interface DrillResultView {
+  /** 핵심 단어 인식률 (0~100) — 발음 점수가 아님 (ADR-0010) */
   score: number;
   passed: boolean;
   /** 전사(또는 텍스트 입력) 결과 */
   transcript: string;
   /** 빠진 핵심 단어 (강조용) */
   missing: string[];
+  /** 또렷함 — 전사 신뢰도 proxy. 발음 정확도 아님. 없으면 unknown. */
+  clarity?: ClarityBand;
+}
+
+/** clarity가 또렷하지 않을 때만 보조 조언을 노출 (점수 아님). clear/unknown이면 숨김. */
+function clarityHint(clarity: ClarityBand | undefined): string | null {
+  if (clarity === 'fair') return '소리는 들렸어요. 한 번 더 또렷하게 말해볼까요?';
+  if (clarity === 'unclear') return '잘 안 들렸어요. 더 또렷하게 다시 말해볼까요?';
+  return null;
 }
 
 export interface DrillStepProps {
@@ -79,6 +89,7 @@ export function DrillStep(props: DrillStepProps) {
     onRetry,
   } = props;
   const [text, setText] = useState('');
+  const hint = result ? clarityHint(result.clarity) : null;
 
   // 통과 결과 표시 중에는 전이 대기 상태 — 추가 입력/제출을 막아 이중 제출을 방지(L2).
   const locked = (result?.passed ?? false) || processing;
@@ -108,18 +119,20 @@ export function DrillStep(props: DrillStepProps) {
 
       {result && (
         <View style={[styles.result, result.passed ? styles.resultGood : styles.resultBad]}>
-          <View style={[styles.scoreRing, result.passed ? styles.ringGood : styles.ringBad]}>
-            <Text style={[styles.scoreText, result.passed ? styles.scoreGood : styles.scoreBad]}>
-              {result.score}
-            </Text>
+          <View style={styles.scoreCol}>
+            <View style={[styles.scoreRing, result.passed ? styles.ringGood : styles.ringBad]}>
+              <Text style={[styles.scoreText, result.passed ? styles.scoreGood : styles.scoreBad]}>
+                {result.score}
+              </Text>
+            </View>
+            <Text style={styles.scoreCaption}>단어 인식</Text>
           </View>
           <View style={styles.resultBody}>
             <Text style={styles.heard}>&ldquo;{result.transcript}&rdquo;</Text>
             <Text style={styles.msg}>
-              {result.passed
-                ? '좋아요! 자연스러워요 👏'
-                : '모범 발음을 듣고 다시 해볼까요?'}
+              {result.passed ? '좋아요! 다 알아들었어요 👏' : '모범 발음을 듣고 다시 해볼까요?'}
             </Text>
+            {hint && <Text style={styles.clarityHint}>🎧 {hint}</Text>}
           </View>
         </View>
       )}
@@ -219,6 +232,8 @@ const styles = StyleSheet.create({
   },
   resultGood: { backgroundColor: colors.mintSoft },
   resultBad: { backgroundColor: colors.tedSoft },
+  scoreCol: { alignItems: 'center', gap: 4 },
+  scoreCaption: { fontSize: 10, fontWeight: '700', color: colors.ink40, letterSpacing: 0.5 },
   scoreRing: {
     width: 58,
     height: 58,
@@ -236,6 +251,7 @@ const styles = StyleSheet.create({
   resultBody: { flex: 1 },
   heard: { color: colors.ink, fontSize: 14, lineHeight: 21 },
   msg: { color: colors.ink60, fontSize: 12.5, marginTop: 3 },
+  clarityHint: { color: colors.tedDeep, fontSize: 12, marginTop: 6, lineHeight: 17 },
   error: { color: colors.tedDeep, fontSize: 13, marginTop: 12, textAlign: 'center' },
   micZone: { marginTop: 'auto', alignItems: 'center', gap: 14, paddingVertical: 20 },
   micState: { fontSize: 13.5, fontWeight: '600', color: colors.ink60, minHeight: 20 },

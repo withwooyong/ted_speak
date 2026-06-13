@@ -5,7 +5,13 @@
  */
 import { type ChatTurn, getTurnFeedback } from '@ted-speak/ai';
 import { findLesson } from '@ted-speak/content';
-import { colors, radius, scoreDrill, type Correction, type Lesson } from '@ted-speak/shared';
+import {
+  assessPronunciation,
+  colors,
+  radius,
+  type Correction,
+  type Lesson,
+} from '@ted-speak/shared';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -16,7 +22,7 @@ import { DrillStep, type DrillResultView } from '@/components/lesson/DrillStep';
 import { LearnStep } from '@/components/lesson/LearnStep';
 import { useRecorder } from '@/hooks/use-recorder';
 import { useTts } from '@/hooks/use-tts';
-import { getAiConfig, transcribeUri } from '@/lib/ai';
+import { getAiConfig, transcribeUri, transcribeUriDetailed } from '@/lib/ai';
 import {
   applyConversationTurn,
   applyDrillResult,
@@ -225,19 +231,26 @@ function LessonRunner({ lesson }: { lesson: Lesson }) {
 
   // ── Drill ──────────────────────────────────────────────────────────────────────
   const scoreAndApply = useCallback(
-    (transcript: string, speakingSeconds: number) => {
+    (transcript: string, speakingSeconds: number, avgLogprob?: number | null) => {
       if (!state) return;
       const drill = lesson.drills[state.drillIndex];
-      const sc = scoreDrill(transcript, drill.keyWords);
-      setDrillResult({ score: sc.score, passed: sc.passed, transcript, missing: sc.missing });
+      // 발음 "점수"가 아니라 핵심 단어 인식률 + 또렷함(clarity) — ADR-0010 정직한 범위.
+      const fb = assessPronunciation(transcript, drill.keyWords, avgLogprob);
+      setDrillResult({
+        score: fb.recognitionScore,
+        passed: fb.passed,
+        transcript,
+        missing: fb.missing,
+        clarity: fb.clarity,
+      });
 
       const { state: next, outcome } = applyDrillResult(state, lesson, {
-        score: sc.score,
-        missing: sc.missing,
+        score: fb.recognitionScore,
+        missing: fb.missing,
         speakingSeconds,
       });
       if (outcome.kind === 'pass') {
-        drillScoresRef.current.push(sc.score);
+        drillScoresRef.current.push(fb.recognitionScore);
         // 통과 → 다음 드릴/대화로. 결과를 잠깐 보여준 뒤 전이.
         // 타이머 핸들을 ref에 보관해 언마운트 시 정리한다(누수 방지).
         if (drillAdvanceTimer.current) clearTimeout(drillAdvanceTimer.current);
@@ -264,8 +277,10 @@ function LessonRunner({ lesson }: { lesson: Lesson }) {
       const seconds = Math.round(recorder.recordedMs / 1000);
       setBusy(true);
       try {
-        const transcript = await transcribeUri(uri, aiConfig, { signal: abortRef.current.signal });
-        scoreAndApply(transcript, seconds);
+        const { text, avgLogprob } = await transcribeUriDetailed(uri, aiConfig, {
+          signal: abortRef.current.signal,
+        });
+        scoreAndApply(text, seconds, avgLogprob);
       } catch (e) {
         if (!isAbortError(e)) setAiError('음성을 인식하지 못했어요. 다시 시도해주세요.');
       } finally {

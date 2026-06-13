@@ -6,7 +6,8 @@
   "types": "index.ts",
   "scripts": {
     "spike": "tsx spike/one-turn.mts",
-    "spike:realtime": "tsx spike/realtime.mts"
+    "spike:realtime": "tsx spike/realtime.mts",
+    "spike:pron": "tsx spike/pronunciation.mts"
   },
   "dependencies": {
     "@ted-speak/shared": "*"

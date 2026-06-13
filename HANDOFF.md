@@ -1,30 +1,33 @@
 # Session Handoff — Ted Speak (TalkTed)
 
-> Last updated: 2026-06-13 (KST) · 세션 6
+> Last updated: 2026-06-13 (KST) · 세션 7
 > Branch: `main` (origin: github.com/withwooyong/ted_speak, private)
-> Latest commit: `9b2c922` - W3 롤플레이 (커밋 완료, **푸시 미요청**) · 직전 푸시 `59cfb74`(W2)
+> Latest commit: 세션 7 W4 발음(커밋 대기, **푸시 미요청**) · 직전 커밋 `9b2c922`(W3) · 직전 푸시 `59cfb74`(W2)
 
 ## Current Status
 
-세션 6에서 **Phase 2 W3 롤플레이**를 일반 ted-run 풀 파이프라인으로 완료(커밋 대기).
+세션 7에서 **Phase 2 W4 발음 피드백(정직한 최소 범위)**을 일반 ted-run 풀 파이프라인으로 완료(커밋 대기).
 
-**W3 롤플레이** — W2 프리토킹 seam을 재사용해 새 테이블·전송 없이 롤플레이(레스토랑·공항·면접·호텔)를
-추가. scenario id를 `tutor_sessions.topic`에 저장, 일일 캡·세션 cap 공유(스키마 변경 없음 → 보안 민감
-아님, ADR-0009). 콘텐츠는 `content/roleplay/*.json` + zod 단일 출처, 목표 추적은 전송→코어
-`metObjectiveIds` 신호(코어가 신뢰 경계 — 시나리오 존재 id만 채택). 프리토킹 동선은 무변경 회귀.
-vitest 353·E2E tutor 10/10(프리토킹 6 + 롤플레이 4).
+**W4 발음** — 스파이크(`npm run spike:pron`)로 **OpenAI 단독 발음 점수 불가**를 실측 확정(ADR-0010):
+whisper-1은 음소 오류를 실단어로 자동교정해 거짓 100점(`ribber→river` 등 6개 중 3개 은폐), gpt-audio는
+실행마다 거부/환각(완벽한 네이티브에 약점 음소 70점대)/깨진 JSON 비결정적. 가짜 점수 출시 안 함.
+재정의: 진실한 것만 — ① 핵심 단어 인식률(scoreDrill 재사용, "발음 점수" 아닌 "단어 인식"으로 라벨
+reframe) ② 또렷함(clarity, `avg_logprob` 밴드 — 발음 정확도 아닌 전사 신뢰도, 점수 아닌 조언으로만)
+③ `PronunciationAssessor` seam(Azure 음소평가 드롭인 자리). `pronunciation_attempts` 테이블·음소 점수는
+Azure 도입까지 이월(채울 정직한 데이터 없음). 신규 벤더·테이블·RLS 없음. vitest **369**(353→+16),
+커버리지 94.97/87.96/97.32, E2E mock-flow 33/33(드릴 동선 무변경 회귀).
 
-코드 측은 P1+P1.5+W1+W2+W3 완료. 남은 건 실기기 검증·U11 OAuth·라이브 전송(dev build)·W4~다.
+코드 측은 P1+P1.5+W1+W2+W3+W4 완료. 남은 건 실기기 검증·U11 OAuth·라이브 전송(dev build)·W5~다.
 
-## Completed This Session (세션 6)
+## Completed This Session (세션 7)
 
 | # | Task | Files |
 |---|------|-------|
-| 1 | **W3 콘텐츠 스키마 + 시드 4종** — RoleplayScenario/Collection zod(objectives 2~4·id 고유 refine), content/roleplay/scenarios.json, 로드 검증 + findScenario | packages/shared/src/content-schema.ts, content/roleplay/scenarios.json(신규), content/index.ts, packages/shared/test/content-schema.test.ts |
-| 2 | **W3 코어 목표 추적**(순수, additive) — objectives 주입·metObjectiveIds 머지(신뢰 경계)·goal 요약. 프리토킹 goal=null 회귀 | apps/mobile/src/lib/tutor-core.ts, apps/mobile/test/tutor-core.test.ts |
-| 3 | **W3 전송** — TutorReply.metObjectiveIds + createRoleplayMockTransport(턴마다 목표 1개 결정적 신호) | apps/mobile/src/lib/tutor-transport.ts, apps/mobile/test/tutor-transport.test.ts |
-| 4 | **W3 UI** — 롤플레이 섹션(배역 배지)·목표 체크리스트·openingLine 첫 버블·목표 달성 판정 카드(토큰만) | apps/mobile/src/app/(tabs)/tutor.tsx |
-| 5 | **W3 검증** — vitest 353(커버리지 94.7/87.3/97.2), E2E tutor 10/10, ADR-0009, 작업계획서 | e2e/tutor-flow.spec.mjs, docs/adr/ADR-0009-*.md(신규), docs/plans/p2-w3-roleplay.md(신규) |
+| 1 | **W4 발음 스파이크** — whisper-1 logprob+정렬 vs gpt-audio 멀티모달 실측. 음소 치환 주입(th→s,v→b,f→p,r→l)으로 정밀도 한계 정량화 → ADR-0010 근거 | packages/ai/spike/pronunciation.mts(신규), packages/ai/package.json(spike:pron) |
+| 2 | **순수 코어** — assessClarity(avg_logprob→밴드)·assessPronunciation(scoreDrill 재사용+또렷함)·PronunciationAssessor/localAssessor seam | packages/shared/src/pronunciation.ts(신규), packages/shared/test/pronunciation.test.ts(신규), packages/shared/index.ts |
+| 3 | **STT 상세 전사** — transcribeDetailed(verbose_json→text+avgLogprob). 기존 transcribe 무변경(makeTranscribeInit/toBlob 헬퍼 추출, FormData 재시도 성질 보존) | packages/ai/src/stt.ts, packages/ai/test/stt.test.ts, packages/ai/index.ts |
+| 4 | **Drill 연결** — transcribeUriDetailed 어댑터, scoreAndApply가 assessPronunciation 사용·avgLogprob 전달. 점수 링 라벨 "단어 인식" reframe + clarity 보조 조언(토큰만) | apps/mobile/src/lib/ai.ts, apps/mobile/src/app/lesson/[id].tsx, apps/mobile/src/components/lesson/DrillStep.tsx |
+| 5 | **검증·문서** — vitest 369·E2E mock 33/33, ADR-0010, 작업계획서, p2-tutor.md §2·§4 동기화 | docs/adr/ADR-0010-*.md(신규), docs/plans/p2-w4-pronunciation.md(신규), docs/plans/p2-tutor.md |
 
 ## In Progress / Pending
 
@@ -34,8 +37,9 @@ vitest 353·E2E tutor 10/10(프리토킹 6 + 롤플레이 4).
 | 2 | 실기기 검증 (P1 완료 정의 ①②③) | 🔴 사용자 액션 | Xcode 미설치 → Expo Go. 체크리스트: `docs/checklists/p1-device-verification.md`. 턴 지연 중앙값 측정 → ADR-0003 갱신 |
 | 3 | U11 Google/Apple OAuth | ⬜ 준비 완료 | 설계·준비: `docs/plans/u11-oauth-prep.md`(네이티브 ID 토큰 방식). 착수 전제: Apple Developer(구매 예정)·번들 ID·호스팅 Supabase·EAS dev build |
 | 4 | 호스팅 Supabase 연결 | 🔴 사용자 액션 | 프로젝트 생성 → `supabase link` + `db push`(마이그레이션 4건) → EAS env |
-| 5 | **Phase 2 W4~** | ⬜ 계획 | W4 발음(스파이크 선행)·W5 히스토리·W6 주간 리포트 (`docs/plans/p2-tutor.md`). W2/W3 코어·전송 seam 재사용. W5·W6에서 프리토킹/롤플레이 분리 필요 시 `tutor_sessions.kind` 도입(보안 민감) |
-| 6 | 출시 전 Edge Function 프록시 | ⬜ P2 W7 | dev는 EXPO_PUBLIC_OPENAI_API_KEY, prod는 음성 비활성(ADR-0005 §6) |
+| 5 | **W4 발음 후속(Azure)** | ⬜ 이월 | 진짜 음소·강세·억양 평가는 Azure Speech(또는 더 신뢰 가능한 미래 오디오 모델) 도입 시. `PronunciationAssessor` Azure 구현(seam 기정의) + `pronunciation_attempts` 테이블(보안 민감) 추가. ADR-0010 |
+| 6 | **Phase 2 W5~** | ⬜ 계획 | W5 히스토리·W6 주간 리포트 (`docs/plans/p2-tutor.md`). W2/W3 세션 데이터 재사용. W5·W6에서 프리토킹/롤플레이 분리 필요 시 `tutor_sessions.kind` 도입(보안 민감) |
+| 7 | 출시 전 Edge Function 프록시 | ⬜ P2 W7 | dev는 EXPO_PUBLIC_OPENAI_API_KEY, prod는 음성 비활성(ADR-0005 §6) |
 
 ## Key Decisions Made
 
@@ -63,6 +67,12 @@ vitest 353·E2E tutor 10/10(프리토킹 6 + 롤플레이 4).
   zod 단일 출처(프리토킹 주제는 코드 상수와 대비). 목표 추적은 전송→코어 `metObjectiveIds` 신호이되,
   코어가 **시나리오에 존재하는 id만 채택·중복 제거(신뢰 경계)** — 목표 달성이 향후 보상/통계 연계
   가능성이 있어 클라/모델 신호 무비판 수용 안 함. 모드 분리용 `tutor_sessions.kind`는 W5·W6에서 필요 시 도입
+- **ADR-0010(승인)**: W4 발음은 **스파이크 실측으로 OpenAI 단독 음소 점수 불가 확정** → 정직한 최소
+  범위로 재정의. whisper-1은 음소 오류를 실단어로 자동교정해 거짓 100점(억양은 logprob Δ≈0으로 못
+  구분), gpt-audio는 비결정적 환각. 가짜 점수는 D10·발음 좌절 리스크에 어긋나 출시 안 함. 진실한 것만:
+  단어 인식률(scoreDrill, "발음 점수" 아닌 "단어 인식"으로 라벨)+또렷함(avg_logprob 밴드, 정확도 아닌
+  전사 신뢰도, 조언으로만). 음소 평가는 `PronunciationAssessor` seam 뒤로 이월(Azure 드롭인),
+  `pronunciation_attempts` 테이블은 채울 정직한 데이터 없어 미생성. 스파이크는 재현 아티팩트(`spike:pron`)로 유지
 
 ## Known Issues
 
@@ -76,15 +86,19 @@ vitest 353·E2E tutor 10/10(프리토킹 6 + 롤플레이 4).
   realtime.mts `PRICE` 상수·ADR-0007 표 갱신. 모델명 불일치 시 `REALTIME_MODEL`로 오버라이드
 - W1 실측은 헤드리스 노드 + TTS 합성 입력 기준 — RN WebRTC·실마이크·모바일 네트워크 경로 지연은
   W2 RN 연결 검증 + 실기기에서 별도 확인 필요(ADR-0007 한계)
+- W4 또렷함(clarity)은 약한·복합 신호(억양 품질 아님) — 점수 아닌 보조 조언으로만 노출. 실마이크/모바일
+  경로의 avg_logprob 분포는 실기기 검증에서 별도 확인 필요(ADR-0010 한계). W4 스파이크 입력도 TTS 합성 기준
+- gpt-4o-audio-preview는 이 계정에서 미접근(404) — 후속 오디오 LLM 검토 시 `gpt-audio`/`gpt-audio-mini` 사용
 
 ## Context for Next Session
 
 - **사용자 목표**: PLAN.md(v0.3) 기반 Speak 스타일 AI 영어 스피킹 앱. 품질 우선(D10), `/ted-run` 파이프라인, 프로토타입(prototype/index.html)이 UX 스펙
-- **다음 작업 후보**: ① W4 발음(스파이크 선행 — Azure vs Whisper, ADR 결정) ② 라이브 전송(EAS dev build + react-native-webrtc, ADR-0008·0009 이월) ③ 실기기 검증(체크리스트) → 지연 ADR-0003 반영 ④ U11 OAuth 전제 충족 후 착수 ⑤ W5 히스토리/W6 주간 리포트(W2/W3 세션 데이터 재사용)
+- **다음 작업 후보**: ① W5 히스토리(W2/W3 세션 데이터 재사용 — 코드로 착수 가능) ② W6 주간 리포트(W5 데이터 의존) ③ 라이브 전송(EAS dev build + react-native-webrtc, ADR-0008·0009 이월) ④ 실기기 검증(체크리스트) → 지연 ADR-0003 반영 ⑤ U11 OAuth 전제 충족 후 착수 ⑥ W4 발음 후속(Azure 음소평가 — PronunciationAssessor seam에 드롭인, ADR-0010)
 - **로컬 개발**: `supabase start`(553xx) → `supabase db reset`(마이그레이션 4건+시드 6레슨) → `npx tsx scripts/verify-rls.mts`(52케이스). 앱: `npm run mobile`, AI는 .env에 EXPO_PUBLIC_OPENAI_API_KEY(dev 전용)
-- **스파이크**: `npm run spike -w @ted-speak/ai`(turn-based 1턴), `npm run spike:realtime -w @ted-speak/ai`(Realtime) — 둘 다 OPENAI_API_KEY 필요. ADR-0003(turn-based)·ADR-0007(Realtime) 근거 데이터
+- **스파이크**: `npm run spike -w @ted-speak/ai`(turn-based 1턴), `spike:realtime`(Realtime), `spike:pron`(발음 — whisper logprob vs gpt-audio) — 모두 OPENAI_API_KEY 필요. ADR-0003·0007·0010 근거 데이터. out/는 gitignore
 - **E2E**: `e2e/*.spec.mjs` — expo web(:8082, `cd apps/mobile && npx expo start --web --port 8082`)+Playwright. `node e2e/tutor-flow.spec.mjs`(튜터 10/10 — 프리토킹 6+롤플레이 4). 스크린샷·results는 gitignore
 - **튜터 아키텍처(W2+W3)**: 순수 코어(`tutor-core.ts`, objectives 추적 포함)+저장소(`tutor-repo.ts`)+전송 seam(`tutor-transport.ts`, Mock/Roleplay/Realtime이월)+팩토리(`tutor.ts`)+UI(`(tabs)/tutor.tsx`). 롤플레이는 같은 seam·`tutor_sessions` 재사용(scenario id를 topic에). 라이브 전송만 교체하면 됨. 완료는 `complete_tutor_session` RPC 필수. 롤플레이 콘텐츠는 `content/roleplay/*.json`(zod, validate:content 가드)
-- **제약·선호**: 커밋 한글, **푸시는 명시 요청 시에만**, StyleSheet+토큰만(인라인 hex 금지), zod z.infer 단일 출처, 새 컬럼은 grant 화이트리스트 검토, 스키마 변경은 보안 민감 ted-run
-- **테스트 인프라**: vitest 353개·커버리지 94.7/87.3/97.2%(게이트 80). istanbul 텍스트 리포터는 100% 커버 파일 생략(skipFull). 신규 순수 모듈은 vitest.config.ts coverage.include에 등록 필요. `@ted-speak/shared` alias 제거 금지
-- **미커밋 작업**: 없음 — W3 롤플레이 커밋 완료(`9b2c922`, **푸시 미요청**). 이 HANDOFF 해시 부기 1줄만 미커밋(다음 세션 /handoff 시 흡수)
+- **발음 아키텍처(W4)**: 순수 코어(`packages/shared/src/pronunciation.ts` — assessPronunciation=scoreDrill 재사용+또렷함, assessClarity, `PronunciationAssessor` seam)+STT(`transcribeDetailed`=verbose_json→avgLogprob, 기존 transcribe 무변경)+어댑터(`transcribeUriDetailed`)+UI(DrillStep 라벨 reframe·clarity 조언). Azure 음소평가는 seam에 드롭인(phonemeScores 확장)+`pronunciation_attempts` 테이블 추가 지점(ADR-0010)
+- **제약·선호**: 커밋 한글, **푸시는 명시 요청 시에만**, StyleSheet+토큰만(인라인 hex 금지), zod z.infer 단일 출처, 새 컬럼은 grant 화이트리스트 검토, 스키마 변경은 보안 민감 ted-run. **품질 우선 — 가짜 점수/지표 출시 안 함(ADR-0010 선례)**
+- **테스트 인프라**: vitest 369개·커버리지 94.97/87.96/97.32%(게이트 80). istanbul 텍스트 리포터는 100% 커버 파일 생략(skipFull). 신규 순수 모듈은 `packages/**/src/**` 글롭으로 자동 포함(app lib는 vitest.config.ts coverage.include에 개별 등록 필요). `@ted-speak/shared` alias 제거 금지
+- **미커밋 작업**: 없음 — W4 발음 커밋 대기(이 세션, **푸시 미요청**). 커밋 후 HANDOFF 해시 부기 1줄만 미커밋(다음 세션 /handoff 시 흡수)

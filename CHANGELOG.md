@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## 2026-06-13 (세션 7) — Phase 2 W4 발음 피드백: 정직한 최소 범위 (일반 ted-run)
+
+전략: **스파이크로 먼저 진실을 측정** — "발음 점수"를 만들기 전에 OpenAI 단독으로 그게 가능한지
+실측했다. 결론: 불가. 그래서 가짜 점수 대신 **진실하게 말할 수 있는 것만** Drill에 더했다(ADR-0010).
+
+- **발음 스파이크**(`packages/ai/spike/pronunciation.mts`, `npm run spike:pron`): 같은 기준문을 네이티브·
+  한국어 보이스·음소 치환 오류(th→s,v→b,f→p,r→l) 주입으로 합성해 비교. **whisper-1은 음소 오류를
+  실단어로 자동교정해 거짓 100점**(ribber→river 등 6개 중 3개 은폐), 억양은 logprob Δ≈0으로 못 구분.
+  **gpt-audio(-mini)는 비결정적**(거부/네이티브에 약점 음소 환각/깨진 JSON). gpt-4o-audio-preview는 계정 미접근(404)
+- **순수 코어**(`packages/shared/src/pronunciation.ts`): `assessClarity`(avg_logprob→clear/fair/unclear/
+  unknown 밴드, 스파이크 임계값 -0.5/-0.62), `assessPronunciation`(**scoreDrill 재사용**+또렷함 — recognized/
+  missing 분리·recognitionScore), `PronunciationAssessor`/`localAssessor` seam(Azure 음소평가 드롭인 자리)
+- **STT 상세 전사**(`stt.ts`): `transcribeDetailed`(verbose_json→text+segment avg_logprob 평균). 기존
+  `transcribe`는 **무변경**(makeTranscribeInit/toBlob 헬퍼만 추출, FormData 재시도-마다-재생성 성질 보존)
+- **Drill 연결**: `transcribeUriDetailed` 어댑터, `scoreAndApply`가 `assessPronunciation` 사용·avgLogprob
+  전달. UI는 점수 링 라벨을 **"단어 인식"**으로 reframe(발음 등급 오인 방지)+clarity 보조 조언("🎧 또렷하게
+  다시")만 노출(점수 아님). 통과 문구 "자연스러워요"→"다 알아들었어요"(발음 정확도 단정 제거). 토큰만 사용
+- **리뷰·검증**: 독립 1차 리뷰 PASS(MEDIUM 1 정리 — clarityHint 이중 호출 캐시, LOW 2는 기존 패턴 답습
+  기록만). vitest **369**(353→+16, 커버리지 94.97/87.96/97.32), E2E mock-flow 33/33(드릴 동선 무변경 회귀). ADR-0010
+- 이월: 진짜 음소·강세·억양 평가는 Azure Speech 도입 시 `PronunciationAssessor`에 드롭인 +
+  `pronunciation_attempts` 테이블(보안 민감). clarity는 약한·복합 신호라 점수화 안 함
+
 ## 2026-06-13 (세션 6) — Phase 2 W3 롤플레이 (일반 ted-run)
 
 전략: **W2 재사용 극대화** — 롤플레이(레스토랑·공항·면접·호텔)를 새 테이블·전송 없이 프리토킹 seam

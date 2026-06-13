@@ -47,12 +47,17 @@ barge-in 175ms, ~$0.035–0.063/분. AI 튜터는 Realtime, 레슨은 turn-based
   목표 추적은 전송→코어 `metObjectiveIds` 신호(코어 신뢰 경계). vitest 353·E2E tutor 10/10(롤플레이 4).
   작업계획서 `docs/plans/p2-w3-roleplay.md`.
 
-### W4. 발음 점수·피드백 UI (결정 필요 — 스파이크 선행)
+### W4. 발음 피드백 (정직한 최소 범위 — 스파이크 후 ADR-0010 확정)
 
-- 후보: ① Azure Speech 발음 평가(음소 단위, 유료) ② Whisper 신뢰도 근사(현 scoreDrill 확장, 무료·정밀도 낮음)
-- 스파이크로 정밀도·비용 비교 → ADR 결정 후 구현 (Drill 단계에 단어 단위 점수 색상 표시부터)
-- pronunciation_attempts 테이블 (PLAN §8 — **보안 민감**)
-- **완료 기준**: Drill에서 단어별 점수 시각화, 약점 음소 1개 이상 식별
+- 스파이크(`npm run spike:pron`) 실측: **OpenAI 단독으론 음소·단어 발음 점수 불가**. whisper는
+  오류를 자동 교정해 거짓 100점(ribber→river 등), gpt-audio는 비결정적 환각. 가짜 점수 출시 안 함.
+- 재정의(ADR-0010): 진실한 것만 — ① 단어 인식 결과(scoreDrill 재사용, "발음 점수" 아닌 "단어
+  인식률"로 라벨) ② 또렷함(clarity, avg_logprob 밴드 — 발음 정확도 아닌 전사 신뢰도, 조언으로만)
+  ③ `PronunciationAssessor` seam(Azure 음소평가 드롭인 자리).
+- 음소 점수·약점 음소 식별·`pronunciation_attempts` 테이블은 **Azure 도입까지 이월**(채울 정직한
+  데이터 없음 → 빈/가짜 컬럼 회피). 신규 벤더·테이블·RLS 없음.
+- **완료 기준**: Drill에서 단어 인식 결과 + 또렷함 힌트를 정직한 라벨로 표시(발음 점수 오인 방지),
+  Azure seam 확보. (docs/plans/p2-w4-pronunciation.md)
 
 ### W5. 대화 히스토리 + 표현 저장
 
@@ -83,6 +88,7 @@ W5는 W2 이후 (세션 데이터 필요)   W6 독립   W7 수시
 
 - [ ] 실기기에서 프리토킹 5분 + 롤플레이 1종 완주
 - [x] Realtime 채택 여부가 실측 근거와 함께 ADR로 기록 — ADR-0007 승인(2026-06-13)
-- [ ] 발음 점수 제공 방식 ADR 확정 + Drill 단어 점수 표시
+- [x] 발음 피드백 방식 ADR 확정(ADR-0010 — OpenAI 단독 한계 실측, 정직한 최소 범위) + Drill 단어
+  인식·또렷함 표시
 - [ ] 비용 상한(일일 호출·세션 시간) 동작 확인
 - [ ] `npm run ci` 그린, 신규 스키마 RLS 검증 케이스 추가

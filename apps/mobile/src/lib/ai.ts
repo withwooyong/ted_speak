@@ -8,8 +8,10 @@
  */
 import {
   transcribe,
+  transcribeDetailed,
   type AiClientConfig,
   type AudioInput,
+  type DetailedTranscript,
   type RequestOptions,
 } from '@ted-speak/ai';
 
@@ -52,6 +54,22 @@ export async function transcribeUri(
   const mimeType = blob.type || 'audio/m4a';
   const audio: AudioInput = { data: blob, filename: 'utterance.m4a', mimeType };
   return transcribe(audio, cfg, opts);
+}
+
+/**
+ * transcribeUri의 상세 버전 — 전사 텍스트 + segment 평균 logprob(또렷함 신호, W4).
+ * Drill 채점 경로에서 사용한다(assessPronunciation에 avgLogprob 주입). 같은 Blob 어댑터.
+ */
+export async function transcribeUriDetailed(
+  uri: string,
+  cfg: AiClientConfig,
+  opts: RequestOptions = {},
+): Promise<DetailedTranscript> {
+  const res = await fetch(uri);
+  const blob = await res.blob();
+  const mimeType = blob.type || 'audio/m4a';
+  const audio: AudioInput = { data: blob, filename: 'utterance.m4a', mimeType };
+  return transcribeDetailed(audio, cfg, opts);
 }
 
 /**
