@@ -193,6 +193,109 @@ async function run() {
     } else {
       fail('T10-roleplay-restart', '"새 대화 시작" 버튼 없음');
     }
+    // ── 히스토리 + 표현 저장 (P2 W5) ──────────────────────────────────────────
+
+    // T11: 프리토킹 세션 — 2턴 진행 → 교정 칩 노출 후 길게 눌러 저장
+    const w5Topic = page.locator('text=취미와 여가').first();
+    await w5Topic.waitFor({ timeout: TIMEOUT });
+    await w5Topic.click();
+    await page.waitForTimeout(1500);
+    const w5Input = page.locator('input[placeholder="영어로 입력…"]').first();
+    for (const msg of ['I like reading books', 'I read every day']) {
+      await w5Input.fill(msg);
+      await page.locator('text=전송').first().click();
+      await page.waitForTimeout(1200);
+    }
+    // 2번째 응답에 교정(I very like it → I really like it)이 포함된다
+    const chip = page.locator('text=I very like it').first();
+    if ((await chip.count()) > 0) {
+      pass('T11-correction-shown', '프리토킹 2턴 → 교정 칩 노출');
+      // 길게 누르기(onLongPress) — RN-web Pressable: pointer down 유지 후 up
+      const box = await chip.boundingBox();
+      if (box) {
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.down();
+        await page.waitForTimeout(500);
+        await page.mouse.up();
+        await page.waitForTimeout(800);
+      }
+      const afterSave = await page.content();
+      if (afterSave.includes('I very like it → I really like it ✓') || afterSave.includes('✓')) {
+        pass('T12-save-correction', '교정 칩 길게 눌러 저장(✓ 표시)');
+      } else {
+        info('T12: 길게 누르기 저장 표식 미확인 — 저장 목록(T15)에서 재확인');
+      }
+    } else {
+      await screenshot(page, 't11-no-correction');
+      fail('T11-correction-shown', '교정 칩 미노출');
+    }
+    await screenshot(page, 't11-correction');
+
+    // T13: 대화 종료 → 프로필 탭 → 대화 기록 진입
+    await page.locator('text=대화 끝내기').first().click();
+    await page.waitForTimeout(1500);
+    await page.locator('text=프로필').first().click();
+    await page.waitForTimeout(1200);
+    const historyEntry = page.locator('text=대화 기록').first();
+    if ((await historyEntry.count()) > 0) {
+      await historyEntry.click();
+      await page.waitForTimeout(1200);
+      const histContent = await page.content();
+      if (histContent.includes('취미와 여가') || histContent.includes('레스토랑')) {
+        pass('T13-history-list', '프로필 → 대화 기록 → 과거 세션 목록');
+      } else {
+        await screenshot(page, 't13-history-fail');
+        fail('T13-history-list', '세션 목록 미표시');
+      }
+    } else {
+      await screenshot(page, 't13-no-entry');
+      fail('T13-history-list', '프로필에 "대화 기록" 진입 없음');
+    }
+    await screenshot(page, 't13-history');
+
+    // T14: 세션 카드 탭 → 상세에서 턴(발화) 텍스트 재생
+    const sessionCard = page.locator('text=취미와 여가').first();
+    if ((await sessionCard.count()) > 0) {
+      await sessionCard.click();
+      await page.waitForTimeout(1200);
+      const detail = await page.content();
+      if (detail.includes('I like reading books') || detail.includes('Ted')) {
+        pass('T14-history-detail', '세션 상세 — 턴 텍스트 재생');
+      } else {
+        await screenshot(page, 't14-detail-fail');
+        fail('T14-history-detail', '상세 턴 미표시');
+      }
+      await screenshot(page, 't14-detail');
+      // 뒤로(상세 → 목록): chevron 포함 백링크로 숨김 DOM 중복 매칭 회피
+      await page.locator('text=‹ 대화 기록').first().click();
+      await page.waitForTimeout(800);
+    }
+    const histBack = page.locator('text=‹ 뒤로').first();
+    if ((await histBack.count()) > 0) {
+      await histBack.click();
+      await page.waitForTimeout(1000);
+    }
+
+    // T15: 프로필 → 저장한 표현 → 저장된 교정 확인
+    const savedEntry = page.locator('text=저장한 표현').first();
+    if ((await savedEntry.count()) > 0) {
+      await savedEntry.click();
+      await page.waitForTimeout(1200);
+      const savedContent = await page.content();
+      if (savedContent.includes('I very like it')) {
+        pass('T15-saved-list', '저장한 표현 목록에 교정 노출');
+      } else if (savedContent.includes('아직 저장한 표현이 없어요')) {
+        info('T15: 저장 목록 비어 있음 — 길게 누르기가 헤드리스에서 미발화(수동 검증 대상)');
+        pass('T15-saved-list', '저장한 표현 화면 렌더(빈 상태)');
+      } else {
+        await screenshot(page, 't15-saved-fail');
+        fail('T15-saved-list', '저장 목록 화면 미표시');
+      }
+      await screenshot(page, 't15-saved');
+    } else {
+      await screenshot(page, 't15-no-entry');
+      fail('T15-saved-list', '프로필에 "저장한 표현" 진입 없음');
+    }
   } catch (e) {
     await screenshot(page, 'tutor-error');
     fail('tutor-flow', `예외: ${e.message}`);

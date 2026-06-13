@@ -79,7 +79,7 @@ try {
   }
 
   console.log('\n■ 익명의 사용자 데이터 접근');
-  for (const table of ['profiles', 'lesson_sessions', 'user_progress', 'conversation_turns']) {
+  for (const table of ['profiles', 'lesson_sessions', 'user_progress', 'conversation_turns', 'saved_expressions']) {
     const { data, error } = await anon.from(table).select('*').limit(1);
     check(`익명은 ${table}을 읽을 수 없다`, !!error || (data?.length ?? 0) === 0);
   }
@@ -321,6 +321,82 @@ try {
       .eq('session_id', tutorSessionId)
       .select();
     check('본인도 튜터 턴 삭제 불가 (불변 로그)', (turnDel?.length ?? 0) === 0);
+  }
+
+  console.log('\n■ saved_expressions (저장된 표현 — P2 W5)');
+  {
+    const { data: se, error: seErr } = await userA.client
+      .from('saved_expressions')
+      .insert({ user_id: userA.id, original: 'I go yesterday', suggested: 'I went yesterday', type: 'grammar', context: 'ctx' })
+      .select()
+      .single();
+    check('본인 표현 저장 가능', !!se && !seErr, seErr?.message);
+    const savedId = se!.id;
+
+    // 서버 권위 컬럼은 default — 직접 위조 불가(grant 미부여)
+    const { error: idForge } = await userA.client
+      .from('saved_expressions')
+      .insert({ user_id: userA.id, original: 'a', suggested: 'b', type: 'vocab', id: '00000000-0000-0000-0000-000000000999' });
+    check('id 직접 insert 불가 (grant)', !!idForge, idForge?.message);
+
+    const { error: tsForge } = await userA.client
+      .from('saved_expressions')
+      .insert({ user_id: userA.id, original: 'c', suggested: 'd', type: 'vocab', created_at: '2000-01-01T00:00:00Z' });
+    check('created_at 직접 insert 불가 (grant)', !!tsForge, tsForge?.message);
+
+    // 타인 명의 저장 불가
+    const { error: seSpoof } = await userB.client
+      .from('saved_expressions')
+      .insert({ user_id: userA.id, original: 'evil', suggested: 'x', type: 'grammar' });
+    check('타인 명의 표현 저장 불가', !!seSpoof);
+
+    // 타인 표현 열람 불가
+    const { data: seView } = await userB.client
+      .from('saved_expressions')
+      .select('original')
+      .eq('id', savedId);
+    check('타인 저장 표현 열람 불가', (seView?.length ?? 0) === 0);
+
+    // 표현은 불변 — update grant 미부여(본인도 수정 불가)
+    const { error: seEdit } = await userA.client
+      .from('saved_expressions')
+      .update({ suggested: '조작' })
+      .eq('id', savedId);
+    check('본인도 저장 표현 수정 불가 (update grant 없음)', !!seEdit, seEdit?.message);
+
+    // 타인은 삭제 불가(RLS)
+    const { data: seDelB } = await userB.client
+      .from('saved_expressions')
+      .delete()
+      .eq('id', savedId)
+      .select();
+    check('타인 저장 표현 삭제 불가', (seDelB?.length ?? 0) === 0);
+
+    // 중복 저장은 unique 제약으로 거부(클라가 idempotent 처리)
+    const { error: seDup } = await userA.client
+      .from('saved_expressions')
+      .insert({ user_id: userA.id, original: 'I go yesterday', suggested: 'I went yesterday', type: 'grammar' });
+    check('같은 표현 중복 저장은 unique 제약으로 거부', !!seDup, seDup?.message);
+
+    // type CHECK 우회 불가 (grant에 type이 있어도 enum 제약이 막는다)
+    const { error: seBadType } = await userA.client
+      .from('saved_expressions')
+      .insert({ user_id: userA.id, original: 'x', suggested: 'y', type: 'spelling' });
+    check('잘못된 type 값은 CHECK 제약으로 거부', !!seBadType, seBadType?.message);
+
+    // 익명은 저장 불가 (revoke insert from anon)
+    const { error: seAnon } = await anon
+      .from('saved_expressions')
+      .insert({ user_id: userA.id, original: 'a', suggested: 'b', type: 'grammar' });
+    check('익명은 표현 저장 불가', !!seAnon);
+
+    // 본인은 삭제 가능(사용자 소유 노트 — 큐레이션)
+    const { data: seDelA } = await userA.client
+      .from('saved_expressions')
+      .delete()
+      .eq('id', savedId)
+      .select();
+    check('본인 저장 표현 삭제 가능 (노트 큐레이션)', (seDelA?.length ?? 0) === 1);
   }
 
   console.log('\n■ user_progress + 통계 트리거');

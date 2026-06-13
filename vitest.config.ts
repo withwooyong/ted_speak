@@ -23,6 +23,7 @@ export default defineConfig({
         'apps/mobile/src/lib/tutor-core.ts',
         'apps/mobile/src/lib/tutor-repo.ts',
         'apps/mobile/src/lib/tutor-transport.ts',
+        'apps/mobile/src/lib/saved-repo.ts',
         'apps/mobile/src/lib/progress-repo.ts',
         'apps/mobile/src/lib/login-core.ts',
         'apps/mobile/src/stores/auth-core.ts',

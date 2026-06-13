@@ -11,6 +11,8 @@
  *  - 세션 완료(발화시간·턴수 확정)는 서버 RPC(complete_tutor_session)로만 한다 — duration_seconds를
  *    클라이언트가 위조하면 일일 캡이 무력화되므로 서버가 started_at 기준으로 산정한다(ADR-0008).
  */
+import type { Correction } from '@ted-speak/shared';
+
 import { SESSION_MAX_SECONDS } from './tutor-core';
 
 /** 일일 프리토킹 시간 상한(초) — 5분 소프트 제한(MVP, ADR-0007 비용 통제) */
@@ -50,6 +52,27 @@ export interface CompleteTutorSessionInput {
   turnCount: number;
 }
 
+/** 히스토리 목록 1건 (W5) — tutor_sessions 행을 화면용으로 평탄화 */
+export interface TutorSessionSummary {
+  id: string;
+  topic: string;
+  status: TutorSessionRow['status'];
+  /** ISO 8601 시작 시각 */
+  startedAt: string;
+  durationSeconds: number;
+  turnCount: number;
+  /** summarizeTutor 결과(goal·strengths 등) — 스키마 자유, UI가 방어적으로 읽음 */
+  summary: unknown;
+}
+
+/** 히스토리 상세 턴 1건 (W5) */
+export interface TutorTurnRow {
+  order: number;
+  role: 'user' | 'assistant';
+  transcript: string;
+  corrections: Correction[];
+}
+
 export interface TutorRepo {
   createSession: (topic: string) => Promise<TutorSessionRow>;
   appendTurn: (sessionId: string, turn: TutorTurnInput) => Promise<void>;
@@ -60,6 +83,24 @@ export interface TutorRepo {
    * SESSION_MAX_SECONDS로 클램프해 합산한다.
    */
   getTodaySessionSeconds: () => Promise<number>;
+  /** 본인 세션 목록 — 최신순(started_at desc). 히스토리 화면용 (W5) */
+  listSessions: () => Promise<TutorSessionSummary[]>;
+  /** 세션 1건 메타 조회 — 없으면 null. 히스토리 상세 헤더용 (W5) */
+  getSession: (sessionId: string) => Promise<TutorSessionSummary | null>;
+  /** 세션 1건의 턴 목록 — order 오름차순. 히스토리 상세 재생용 (W5) */
+  getSessionTurns: (sessionId: string) => Promise<TutorTurnRow[]>;
+}
+
+/** corrections jsonb를 Correction[]로 방어적 변환 (신뢰 경계 — 알 수 없는 형태는 버린다) */
+function toCorrections(raw: unknown): Correction[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (c): c is Correction =>
+      typeof c === 'object' &&
+      c !== null &&
+      typeof (c as Correction).original === 'string' &&
+      typeof (c as Correction).suggested === 'string',
+  );
 }
 
 /** KST(Asia/Seoul) 기준 날짜 문자열(YYYY-MM-DD) — init.sql 통계 트리거 경계와 일치 */
@@ -80,8 +121,17 @@ interface MockSession {
   durationSeconds: number;
   /** 세션 시작 KST 날짜(YYYY-MM-DD) */
   startedDate: string;
-  /** 세션 시작 시각(ms) — 진행 중 세션의 경과 시간 산정용 */
+  /** 세션 시작 시각(ms) — 진행 중 세션의 경과 시간 산정·히스토리 정렬용 */
   startedAtMs: number;
+  /** 완료 시 기록되는 턴 수 (히스토리 표시용) */
+  turnCount: number;
+  /** 완료 시 기록되는 요약 (히스토리 표시용) */
+  summary?: unknown;
+  /**
+   * 대화 턴 로그 — 히스토리 재생용(W5). dev/web mock 전용·네임스페이스 격리이며
+   * 웹은 메모리 폴백(디스크 미영속)이라 PII 영속 표면이 작다.
+   */
+  turns: TutorTurnRow[];
 }
 
 interface MockState {
@@ -136,16 +186,27 @@ export function createMockTutorRepo(
         durationSeconds: 0,
         startedDate: kstDateString(t),
         startedAtMs: t.getTime(),
+        turnCount: 0,
+        turns: [],
       };
       state.sessions[session.id] = session;
       await save(state);
       return { id: session.id, topic, status: 'in_progress' };
     },
 
-    async appendTurn() {
-      // mock은 턴 본문을 보존하지 않는다(요약 통계만 관심) — PII 디스크 영속 최소화.
-      // 인터페이스 계약(throw 안 함)만 만족한다.
-      return;
+    async appendTurn(sessionId, turn) {
+      // 히스토리 재생용으로 턴을 보존한다(W5). 없는 세션이면 계약상 조용히 무시한다.
+      const state = await load();
+      const session = state.sessions[sessionId];
+      if (!session) return;
+      session.turns = session.turns ?? [];
+      session.turns.push({
+        order: turn.order,
+        role: turn.role,
+        transcript: turn.transcript,
+        corrections: toCorrections(turn.corrections),
+      });
+      await save(state);
     },
 
     async completeSession(sessionId, input) {
@@ -154,6 +215,8 @@ export function createMockTutorRepo(
       if (!session) return;
       session.status = 'completed';
       session.durationSeconds = Math.max(0, input.durationSeconds);
+      session.turnCount = Math.max(0, input.turnCount);
+      session.summary = input.summary;
       await save(state);
     },
 
@@ -164,6 +227,26 @@ export function createMockTutorRepo(
       return Object.values(state.sessions)
         .filter((s) => s.startedDate === today)
         .reduce((sum, s) => sum + sessionSeconds(s.status, s.durationSeconds, t.getTime() - s.startedAtMs), 0);
+    },
+
+    async listSessions() {
+      const state = await load();
+      return Object.values(state.sessions)
+        .sort((a, b) => b.startedAtMs - a.startedAtMs) // 최신순
+        .map(mockToSummary);
+    },
+
+    async getSession(sessionId) {
+      const state = await load();
+      const s = state.sessions[sessionId];
+      return s ? mockToSummary(s) : null;
+    },
+
+    async getSessionTurns(sessionId) {
+      const state = await load();
+      const session = state.sessions[sessionId];
+      if (!session) return [];
+      return [...(session.turns ?? [])].sort((a, b) => a.order - b.order);
     },
   };
 }
@@ -178,6 +261,35 @@ function sessionSeconds(status: string, durationSeconds: number, elapsedMs: numb
   const elapsed = Math.max(0, Math.floor(elapsedMs / 1000));
   return Math.min(elapsed, SESSION_MAX_SECONDS);
 }
+
+/** MockSession → 화면용 요약(히스토리) */
+function mockToSummary(s: MockSession): TutorSessionSummary {
+  return {
+    id: s.id,
+    topic: s.topic,
+    status: s.status,
+    startedAt: new Date(s.startedAtMs).toISOString(),
+    durationSeconds: s.durationSeconds,
+    turnCount: s.turnCount ?? 0,
+    summary: s.summary,
+  };
+}
+
+/** supabase tutor_sessions 행 → 화면용 요약(히스토리) */
+function rowToSummary(r: Record<string, unknown>): TutorSessionSummary {
+  return {
+    id: String(r.id),
+    topic: String(r.topic ?? ''),
+    status: (r.status as TutorSessionRow['status']) ?? 'completed',
+    startedAt: String(r.started_at ?? ''),
+    durationSeconds: Number(r.duration_seconds ?? 0),
+    turnCount: Number(r.turn_count ?? 0),
+    summary: r.summary ?? null,
+  };
+}
+
+/** tutor_sessions 히스토리 조회 컬럼(목록·단건 공통) */
+const SESSION_SELECT = 'id, topic, status, started_at, duration_seconds, turn_count, summary';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Supabase Repo — 실제 supabase-js 체이닝과 호환되는 호출 형태
@@ -264,6 +376,45 @@ export function createSupabaseTutorRepo(
         const elapsedMs = nowMs - new Date(String(r.started_at ?? 0)).getTime();
         return sum + sessionSeconds(String(r.status ?? ''), Number(r.duration_seconds ?? 0), elapsedMs);
       }, 0);
+    },
+
+    async listSessions() {
+      // RLS가 본인 행만 반환 — user_id 필터 없이 최신순 조회(started_at desc).
+      const { data, error } = await client
+        .from('tutor_sessions')
+        .select(SESSION_SELECT)
+        .order('started_at', { ascending: false });
+      if (error) throw dataError('세션 목록 조회');
+      const rows = (data as Record<string, unknown>[] | null) ?? [];
+      return rows.map(rowToSummary);
+    },
+
+    async getSession(sessionId) {
+      // RLS가 본인 행만 반환 — 타인 id를 넘겨도 0행(빈 배열). 단건이라 첫 행만 사용.
+      const { data, error } = await client
+        .from('tutor_sessions')
+        .select(SESSION_SELECT)
+        .eq('id', sessionId);
+      if (error) throw dataError('세션 조회');
+      const rows = (data as Record<string, unknown>[] | null) ?? [];
+      return rows.length > 0 ? rowToSummary(rows[0]) : null;
+    },
+
+    async getSessionTurns(sessionId) {
+      // RLS(세션 소유권 위임)가 본인 세션의 턴만 반환 — 신규 RPC 불필요.
+      const { data, error } = await client
+        .from('tutor_turns')
+        .select('order, role, transcript, corrections')
+        .eq('session_id', sessionId)
+        .order('order', { ascending: true });
+      if (error) throw dataError('세션 턴 조회');
+      const rows = (data as Record<string, unknown>[] | null) ?? [];
+      return rows.map((r) => ({
+        order: Number(r.order ?? 0),
+        role: (r.role as TutorTurnRow['role']) ?? 'user',
+        transcript: String(r.transcript ?? ''),
+        corrections: toCorrections(r.corrections),
+      }));
     },
   };
 }

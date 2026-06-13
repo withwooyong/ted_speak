@@ -8,7 +8,14 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { clampReply, MAX_REPLY_CHARS } from '../src/feedback-schema';
+import {
+  clampReply,
+  MAX_REPLY_CHARS,
+  SavedExpressionInputSchema,
+  SavedExpressionSchema,
+  type SavedExpression,
+  type SavedExpressionInput,
+} from '../src/feedback-schema';
 
 describe('MAX_REPLY_CHARS 상수', () => {
   it('400이다 (TTS 비용·재생 시간 상한)', () => {
@@ -139,5 +146,71 @@ describe('clampReply — 회복형 절단 (HANDOFF 2b LOW)', () => {
   it('비어있지 않은 입력에 대해 결과도 비어있지 않다', () => {
     expect(clampReply('Hello!')).not.toBe('');
     expect(clampReply('X'.repeat(500))).not.toBe('');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SavedExpression (W5) — Correction 재사용 단일 출처
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('SavedExpressionInputSchema — 저장 입력(교정 스냅샷)', () => {
+  it('Correction 필드 + 선택 context를 파싱한다', () => {
+    const input: SavedExpressionInput = {
+      original: 'I go to school yesterday',
+      suggested: 'I went to school yesterday',
+      type: 'grammar',
+      context: 'I go to school yesterday with my friend',
+    };
+    expect(SavedExpressionInputSchema.parse(input)).toEqual(input);
+  });
+
+  it('context는 선택이다(없어도 통과)', () => {
+    const parsed = SavedExpressionInputSchema.parse({
+      original: 'kid',
+      suggested: 'child',
+      type: 'vocab',
+    });
+    expect(parsed.context).toBeUndefined();
+    expect(parsed.suggested).toBe('child');
+  });
+
+  it('type은 Correction enum을 재사용한다(grammar/vocab/pronunciation만)', () => {
+    expect(() =>
+      SavedExpressionInputSchema.parse({ original: 'a', suggested: 'b', type: 'spelling' }),
+    ).toThrow();
+    for (const type of ['grammar', 'vocab', 'pronunciation'] as const) {
+      expect(SavedExpressionInputSchema.parse({ original: 'a', suggested: 'b', type }).type).toBe(type);
+    }
+  });
+
+  it('original/suggested 누락은 거부한다', () => {
+    expect(() => SavedExpressionInputSchema.parse({ suggested: 'b', type: 'grammar' })).toThrow();
+    expect(() => SavedExpressionInputSchema.parse({ original: 'a', type: 'grammar' })).toThrow();
+  });
+});
+
+describe('SavedExpressionSchema — 저장된 표현(id·createdAt 포함)', () => {
+  it('입력에 id·createdAt이 추가된 형태를 파싱한다', () => {
+    const saved: SavedExpression = {
+      id: 'se-1',
+      original: 'I go to school yesterday',
+      suggested: 'I went to school yesterday',
+      type: 'grammar',
+      context: undefined,
+      createdAt: '2026-06-13T01:00:00.000Z',
+    };
+    expect(SavedExpressionSchema.parse(saved)).toMatchObject({ id: 'se-1', type: 'grammar' });
+  });
+
+  it('빈 id는 거부한다', () => {
+    expect(() =>
+      SavedExpressionSchema.parse({
+        id: '',
+        original: 'a',
+        suggested: 'b',
+        type: 'grammar',
+        createdAt: '2026-06-13T01:00:00.000Z',
+      }),
+    ).toThrow();
   });
 });

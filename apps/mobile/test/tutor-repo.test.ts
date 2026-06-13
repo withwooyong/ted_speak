@@ -110,6 +110,62 @@ describe('createMockTutorRepo', () => {
     expect(await repoA.getTodaySessionSeconds()).toBe(120);
     expect(await repoB.getTodaySessionSeconds()).toBe(0);
   });
+
+  // ── 히스토리 읽기 (W5) ──────────────────────────────────────────────────────
+
+  it('listSessions는 생성·완료한 세션을 최신순으로 돌려준다', async () => {
+    let clock = new Date('2026-06-13T10:00:00+09:00');
+    const repo = createMockTutorRepo(storage, { now: () => clock });
+    const a = await repo.createSession('hobbies');
+    await repo.completeSession(a.id, { summary: { strengths: ['good'] }, durationSeconds: 90, turnCount: 4 });
+    clock = new Date('2026-06-13T10:10:00+09:00');
+    const b = await repo.createSession('restaurant');
+    await repo.completeSession(b.id, { summary: {}, durationSeconds: 60, turnCount: 2 });
+
+    const list = await repo.listSessions();
+    expect(list.map((s) => s.topic)).toEqual(['restaurant', 'hobbies']);
+    const first = list[0];
+    expect(first).toMatchObject({ topic: 'restaurant', status: 'completed', durationSeconds: 60, turnCount: 2 });
+    expect(first.startedAt).toBeTruthy();
+    const hobbies = list.find((s) => s.topic === 'hobbies')!;
+    expect(hobbies.summary).toMatchObject({ strengths: ['good'] });
+  });
+
+  it('getSessionTurns는 추가한 턴을 order 오름차순으로 돌려준다', async () => {
+    const repo = createMockTutorRepo(storage);
+    const s = await repo.createSession('hobbies');
+    await repo.appendTurn(s.id, { order: 1, role: 'user', transcript: 'I go yesterday', corrections: [{ original: 'I go yesterday', suggested: 'I went yesterday', type: 'grammar' }] });
+    await repo.appendTurn(s.id, { order: 2, role: 'assistant', transcript: 'Nice! Where did you go?', corrections: [] });
+
+    const turns = await repo.getSessionTurns(s.id);
+    expect(turns).toHaveLength(2);
+    expect(turns[0]).toMatchObject({ order: 1, role: 'user', transcript: 'I go yesterday' });
+    expect(turns[0].corrections).toHaveLength(1);
+    expect(turns[1]).toMatchObject({ order: 2, role: 'assistant' });
+  });
+
+  it('listSessions는 namespace로 격리된다', async () => {
+    const repoA = createMockTutorRepo(storage, { namespace: 'userA' });
+    const repoB = createMockTutorRepo(storage, { namespace: 'userB' });
+    await repoA.createSession('hobbies');
+    expect(await repoA.listSessions()).toHaveLength(1);
+    expect(await repoB.listSessions()).toHaveLength(0);
+  });
+
+  it('getSessionTurns는 없는 세션이면 빈 배열', async () => {
+    const repo = createMockTutorRepo(storage);
+    expect(await repo.getSessionTurns('nope')).toEqual([]);
+  });
+
+  it('getSession은 세션 1건 메타를 돌려주고 없으면 null', async () => {
+    const repo = createMockTutorRepo(storage);
+    const s = await repo.createSession('hobbies');
+    await repo.completeSession(s.id, { summary: { strengths: ['nice'] }, durationSeconds: 75, turnCount: 3 });
+    const meta = await repo.getSession(s.id);
+    expect(meta).toMatchObject({ id: s.id, topic: 'hobbies', status: 'completed', durationSeconds: 75, turnCount: 3 });
+    expect(meta?.summary).toMatchObject({ strengths: ['nice'] });
+    expect(await repo.getSession('nope')).toBeNull();
+  });
 });
 
 // ── Supabase Repo (fake 클라이언트) ───────────────────────────────────────────
@@ -261,5 +317,85 @@ describe('createSupabaseTutorRepo', () => {
   it('getTodaySessionSeconds는 에러 시 throw한다', async () => {
     fake.setPreset('tutor_sessions.select', { data: null, error: { message: 'x' } });
     await expect(repo.getTodaySessionSeconds()).rejects.toThrow(/세션 시간 조회/);
+  });
+
+  // ── 히스토리 읽기 (W5) ──────────────────────────────────────────────────────
+
+  it('listSessions는 started_at 내림차순으로 조회하고 행을 매핑한다', async () => {
+    fake.setPreset('tutor_sessions.select', {
+      data: [
+        {
+          id: 'sess-2',
+          topic: 'restaurant',
+          status: 'completed',
+          started_at: '2026-06-13T02:00:00Z',
+          duration_seconds: 60,
+          turn_count: 2,
+          summary: { strengths: ['nice'] },
+        },
+      ],
+      error: null,
+    });
+    const list = await repo.listSessions();
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({
+      id: 'sess-2',
+      topic: 'restaurant',
+      status: 'completed',
+      durationSeconds: 60,
+      turnCount: 2,
+      startedAt: '2026-06-13T02:00:00Z',
+    });
+    expect(list[0].summary).toMatchObject({ strengths: ['nice'] });
+    const order = fake.getCalls().find((c) => c.operation === 'order');
+    expect(order?.args[0]).toBe('started_at');
+    expect(order?.args[1]).toMatchObject({ ascending: false });
+  });
+
+  it('getSessionTurns는 session_id로 필터하고 order 오름차순으로 조회한다', async () => {
+    fake.setPreset('tutor_turns.select', {
+      data: [
+        { order: 1, role: 'user', transcript: 'hi', corrections: [] },
+        { order: 2, role: 'assistant', transcript: 'hello', corrections: [] },
+      ],
+      error: null,
+    });
+    const turns = await repo.getSessionTurns('sess-1');
+    expect(turns).toHaveLength(2);
+    expect(turns[0]).toMatchObject({ order: 1, role: 'user', transcript: 'hi' });
+    const eq = fake.getCalls().find((c) => c.operation === 'eq');
+    expect(eq?.args).toEqual(['session_id', 'sess-1']);
+    const order = fake.getCalls().find((c) => c.table === 'tutor_turns' && c.operation === 'order');
+    expect(order?.args[0]).toBe('order');
+    expect(order?.args[1]).toMatchObject({ ascending: true });
+  });
+
+  it('getSession은 id로 필터해 단건을 매핑하고 없으면 null', async () => {
+    fake.setPreset('tutor_sessions.select', {
+      data: [{ id: 'sess-9', topic: 'travel', status: 'completed', started_at: '2026-06-13T02:00:00Z', duration_seconds: 75, turn_count: 3, summary: {} }],
+      error: null,
+    });
+    const meta = await repo.getSession('sess-9');
+    expect(meta).toMatchObject({ id: 'sess-9', topic: 'travel', durationSeconds: 75, turnCount: 3 });
+    const eq = fake.getCalls().find((c) => c.operation === 'eq');
+    expect(eq?.args).toEqual(['id', 'sess-9']);
+
+    fake.setPreset('tutor_sessions.select', { data: [], error: null });
+    expect(await repo.getSession('missing')).toBeNull();
+  });
+
+  it('getSession은 에러 시 throw한다', async () => {
+    fake.setPreset('tutor_sessions.select', { data: null, error: { message: 'x' } });
+    await expect(repo.getSession('sess-1')).rejects.toThrow(/tutor-repo/);
+  });
+
+  it('listSessions는 에러 시 throw한다', async () => {
+    fake.setPreset('tutor_sessions.select', { data: null, error: { message: 'x' } });
+    await expect(repo.listSessions()).rejects.toThrow(/tutor-repo/);
+  });
+
+  it('getSessionTurns는 에러 시 throw한다', async () => {
+    fake.setPreset('tutor_turns.select', { data: null, error: { message: 'x' } });
+    await expect(repo.getSessionTurns('sess-1')).rejects.toThrow(/tutor-repo/);
   });
 });

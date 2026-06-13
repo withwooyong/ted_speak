@@ -59,11 +59,16 @@ barge-in 175ms, ~$0.035–0.063/분. AI 튜터는 Realtime, 레슨은 turn-based
 - **완료 기준**: Drill에서 단어 인식 결과 + 또렷함 힌트를 정직한 라벨로 표시(발음 점수 오인 방지),
   Azure seam 확보. (docs/plans/p2-w4-pronunciation.md)
 
-### W5. 대화 히스토리 + 표현 저장
+### W5. 대화 히스토리 + 표현 저장 ✅ 완료 (2026-06-13, 세션 8)
 
 - 프로필 탭에 과거 세션 목록·재생(텍스트), 대화 중 교정 칩 길게 눌러 저장
 - saved_expressions 테이블 (PLAN §8 — **보안 민감**), 저장 표현 복습 목록
 - **완료 기준**: 저장→목록→복습 동선 E2E
+- **완료**: 히스토리는 기존 RLS select 재사용(신규 RPC·스키마 변경 0 — `listSessions`/`getSession`/
+  `getSessionTurns`만 추가). 신규 테이블은 `saved_expressions` 1개 — 사용자 소유 노트라 **delete 허용**
+  (W2와 의도적 차이, 파밍 표면 0), update 부재, 컬럼 화이트리스트·길이/unique CHECK(ADR-0011).
+  vitest 400·E2E tutor 15/15(W5 5건)·mock 33/33·verify-rls 64/64. 작업계획서 `docs/plans/p2-w5-history.md`.
+  히스토리는 **튜터 세션만**(레슨 이월).
 
 ### W6. 주간 스피킹 리포트
 

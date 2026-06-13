@@ -20,6 +20,25 @@ export type Correction = z.infer<typeof CorrectionSchema>;
 export type TurnFeedback = z.infer<typeof TurnFeedbackSchema>;
 
 /**
+ * 저장된 표현(복습 노트) 계약 (PLAN §8 SavedExpression, P2 W5) — 단일 출처.
+ * 교정(Correction)을 그대로 재사용해 중복 정의를 막는다. 저장 입력은 교정 + 맥락,
+ * 저장된 표현은 거기에 서버가 발급한 id·createdAt이 붙은 형태.
+ */
+export const SavedExpressionInputSchema = CorrectionSchema.extend({
+  /** 교정이 나온 사용자 발화(복습 시 문맥) — 선택 */
+  context: z.string().optional(),
+});
+
+export const SavedExpressionSchema = SavedExpressionInputSchema.extend({
+  id: z.string().min(1),
+  /** ISO 8601 저장 시각 */
+  createdAt: z.string(),
+});
+
+export type SavedExpressionInput = z.infer<typeof SavedExpressionInputSchema>;
+export type SavedExpression = z.infer<typeof SavedExpressionSchema>;
+
+/**
  * reply 길이 상한 (HANDOFF 2b LOW) — TTS 비용·재생 시간 상한.
  * max_tokens(220)는 LLM 협조에 의존하므로, 비정상적으로 긴 reply에 대한 클라이언트 측 하드 캡이 필요하다.
  */

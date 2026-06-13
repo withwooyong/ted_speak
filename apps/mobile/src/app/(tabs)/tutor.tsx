@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { findScenario, roleplayScenarios } from '@ted-speak/content';
+import { useSaveExpression } from '@/hooks/use-save-expression';
 import { getTutorRepo } from '@/lib/tutor';
 import {
   applyTedTurn,
@@ -58,6 +59,7 @@ export default function Tutor() {
   const queryClient = useQueryClient();
   const [state, setState] = useState<TutorState | null>(null);
   const [input, setInput] = useState('');
+  const { saveCorrection, isSaved } = useSaveExpression();
 
   const transportRef = useRef<TutorTransport | null>(null);
   const orderRef = useRef(0);
@@ -323,6 +325,7 @@ export default function Tutor() {
   // active / ending — 대화 화면
   const remainingInSession = Math.max(0, SESSION_MAX_SECONDS - state.elapsedSeconds);
   const lastTed = state.history.findLast((h) => h.role === 'assistant');
+  const lastUser = state.history.findLast((h) => h.role === 'user');
   const scenario = findScenario(state.topicId);
   const topic = findTopic(state.topicId);
   const isRoleplay = state.objectives.length > 0;
@@ -368,12 +371,21 @@ export default function Tutor() {
 
         {state.corrections.length > 0 && (
           <View style={styles.corrections}>
-            <Text style={styles.correctionsLabel}>교정</Text>
-            {state.corrections.slice(-3).map((c: Correction, i) => (
-              <Text key={`c-${i}`} style={styles.correctionChip}>
-                {c.original} → <Text style={styles.correctionSuggest}>{c.suggested}</Text>
-              </Text>
-            ))}
+            <Text style={styles.correctionsLabel}>교정 (길게 눌러 저장)</Text>
+            {state.corrections.slice(-3).map((c: Correction, i) => {
+              const saved = isSaved(c);
+              return (
+                <Pressable
+                  key={`c-${i}`}
+                  onLongPress={() => void saveCorrection(c, lastUser?.text)}
+                  delayLongPress={300}>
+                  <Text style={styles.correctionChip}>
+                    {c.original} → <Text style={styles.correctionSuggest}>{c.suggested}</Text>
+                    {saved ? ' ✓' : ''}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         )}
       </ScrollView>

@@ -1,7 +1,9 @@
 import { colors, radius } from '@ted-speak/shared';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { getSavedRepo } from '@/lib/saved';
 import { signOut, useAuthStore } from '@/stores/auth';
 import { useUserStore } from '@/stores/user';
 
@@ -15,6 +17,27 @@ export default function Profile() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const { streak, xp, todaySpeakingSeconds, level, goal, dailyGoalMinutes } = useUserStore();
+  const [savedCount, setSavedCount] = useState<number | null>(null);
+
+  // 화면에 들어올 때마다 저장한 표현 개수를 갱신(저장/삭제 후 복귀 반영)
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      void (async () => {
+        const repo = getSavedRepo();
+        if (!repo) return;
+        try {
+          const list = await repo.list();
+          if (alive) setSavedCount(list.length);
+        } catch {
+          // 무시 — 카운트 표시는 부가 정보
+        }
+      })();
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
 
   const handleSignOut = async () => {
     await signOut();
@@ -50,6 +73,21 @@ export default function Profile() {
           label="일일 목표"
           value={dailyGoalMinutes ? `${dailyGoalMinutes}분` : '미설정'}
         />
+      </View>
+
+      <View style={styles.menu}>
+        <Pressable style={styles.menuRow} onPress={() => router.push('/history')}>
+          <Text style={styles.menuLabel}>대화 기록</Text>
+          <Text style={styles.menuChevron}>›</Text>
+        </Pressable>
+        <View style={styles.menuDivider} />
+        <Pressable style={styles.menuRow} onPress={() => router.push('/saved')}>
+          <Text style={styles.menuLabel}>저장한 표현</Text>
+          <View style={styles.menuRight}>
+            {savedCount !== null && <Text style={styles.menuCount}>{savedCount}</Text>}
+            <Text style={styles.menuChevron}>›</Text>
+          </View>
+        </Pressable>
       </View>
 
       <Pressable style={styles.signOut} onPress={handleSignOut}>
@@ -118,6 +156,23 @@ const styles = StyleSheet.create({
   },
   infoLabel: { color: colors.ink60, fontSize: 14, fontWeight: '600' },
   infoValue: { color: colors.ink, fontSize: 14, fontWeight: '700' },
+  menu: {
+    backgroundColor: colors.paper,
+    borderRadius: radius.card,
+    marginTop: 12,
+  },
+  menuRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+  },
+  menuDivider: { height: 1, backgroundColor: colors.ink12, marginHorizontal: 18 },
+  menuLabel: { color: colors.ink, fontSize: 15, fontWeight: '700' },
+  menuRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  menuCount: { color: colors.tedDeep, fontSize: 14, fontWeight: '800' },
+  menuChevron: { color: colors.ink40, fontSize: 20, fontWeight: '700' },
   signOut: {
     marginTop: 'auto',
     borderRadius: radius.button,
