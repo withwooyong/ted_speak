@@ -1,12 +1,21 @@
 # CHANGELOG
 
-## 2026-06-13 (세션 4) — P1.5 다듬기: 재로그인 하이드레이트 + reply clamp (보안 민감 ted-run)
+## 2026-06-13 (세션 4) — P1.5 다듬기 + Phase 2 W1 Realtime 스파이크
+
+### P1.5 다듬기: 재로그인 하이드레이트 + reply clamp (보안 민감 ted-run) `3f90b77`
 
 - V1: supabase 실로그인 시 profiles 1회 재조회 하이드레이트 — `profiles.onboarded_at` 마커(신규 마이그레이션) + `lib/profile-sync.ts`(auth 스토어 구독, require cycle 방지). 로그아웃→재로그인 시 온보딩 스킵·홈 직행, 서버 streak 반영. `profileToHydration` 방어 검증(enum 밖→null, 범위 밖→기본값/0, 날짜 형식 검증), 권위 출처 구분(streak·last_study_date는 서버 트리거)
 - V2: `TurnFeedback.reply` 문장 경계 clamp(`MAX_REPLY_CHARS=400`) — 스키마 `.max()` 하드 실패 대신 회복형 절단(Fallback 원칙), TTS 비용·재생 시간 상한
 - 보안(2a MEDIUM 4·LOW 3 + 2b HIGH 1·MEDIUM 1 수정·재리뷰 PASS): in-flight 크로스유저 PII 주입 차단(스테일 응답 폐기), 리스너 경유 로그아웃 PII 정리(재수화 역전 가드), `login.tsx` imperative→반응형 라우팅(스테일 onboarded 우회 해소), `LEARNING_GOALS` 단일 출처화 — semgrep 신규 0건, **RLS 36/36**(onboarded_at 케이스 3 추가)
 - 검증: 테스트 272개(커버리지 93.4/86.1/96.5%), E2E supabase-flow 13 PASS(재로그인 온보딩 스킵·DB 반영·PII 정리 신규 S12 포함)
 - 문서: ADR-0006(하이드레이트·신뢰 경계·clamp), 실기기 검증 체크리스트, U11 OAuth 준비 문서, Phase 2 계획서 초안 (ADR-0005 §한계 2건 해소 포인터)
+
+### Phase 2 W1 Realtime 스파이크 + 실측 → ADR-0007 승인
+
+- `packages/ai/spike/realtime.mts` — OpenAI Realtime WebSocket 1세션 E2E. 입력은 TTS pcm(24kHz=Realtime 입력 포맷) 자가 합성, 첫 응답 지연(commit→첫 오디오)·barge-in(response.cancel 확정)·턴당 비용(usage×단가)을 3회 중앙값 측정. preview↔GA 스키마·이벤트명 차이 견고 흡수, 모델은 `REALTIME_MODEL` 오버라이드
+- `ws`/`@types/ws`를 `@ted-speak/ai` devDependency로 선언, `spike:realtime` 스크립트 추가
+- **실측(2026-06-13, gpt-realtime GA)**: 첫 응답 지연 중앙값 **0.63s**(turn-based 3.51s 대비 ~5.6×), barge-in 취소 확정 **175ms**, 턴당 **~$0.006–0.010**(~$0.035–0.063/분). 실측 중 스파이크 버그 3건 수정 — ① `session.update` 미전송 ② GA `session.type:'realtime'` 필수 ③ 서버 VAD 미해제 시 `turn_detected` 자동 취소로 가짜 측정값(0.04s·usage 0·빈 응답) → `audio.input.turn_detection:null` + 이중 검증. 첫 오디오 델타에서 transcript 제외, barge-in은 최종 `response.done` 기준
+- **ADR-0007 승인**: AI 튜터(프리토킹·롤플레이) Realtime 채택, 레슨 turn-based 유지(Hybrid 확정). 비용은 일일 시간 상한·세션 길이 cap으로 통제(W2). 실행: `OPENAI_API_KEY=... npm run spike:realtime -w @ted-speak/ai`
 
 ## 2026-06-12~13 (세션 3) — P1 핵심 루프 U1~U9 (보안 민감 ted-run) `6489099`
 

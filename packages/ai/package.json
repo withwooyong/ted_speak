@@ -5,9 +5,14 @@
   "main": "index.ts",
   "types": "index.ts",
   "scripts": {
-    "spike": "tsx spike/one-turn.mts"
+    "spike": "tsx spike/one-turn.mts",
+    "spike:realtime": "tsx spike/realtime.mts"
   },
   "dependencies": {
     "@ted-speak/shared": "*"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.0",
+    "ws": "^8.18.0"
   }
 }
