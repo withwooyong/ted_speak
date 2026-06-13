@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-06-12~13 (세션 3) — P1 핵심 루프 U1~U9 (보안 민감 ted-run) `6489099`
+
+- U1: `reliableFetch` 신뢰성 계층 — 시도당 타임아웃 15s + 지수 백오프 재시도 2회, 호출자 signal 취소, 스트림 첫 바이트 전만 재시도 (undici 스톨 대응, ADR-0003 갱신)
+- U2~U7: 레슨 3단계 풀 루프 — recorder-core(30초 cap·권한 폴백) → Drill 로컬 채점(2회 실패 후 건너뛰기) → 4턴 대화(교정 칩, Ted 발화 문장 분할 합성 재생) → 완료 요약·XP. lesson-core 순수 상태 머신 + lesson_sessions.snapshot 이어하기(신규 마이그레이션) + 일 1레슨 소프트 제한 (ADR-0005)
+- U3/U8: 온보딩 4단계(profiles 화이트리스트 컬럼만 동기화), 이메일 로그인/가입 + Dev Mock UI 게이트
+- U9: 일상 회화 6레슨, content JSON → seed.sql 생성기(`npm run generate:seed`) 단일 출처화
+- 보안(2a 3건+2b 1건 MEDIUM 수정·재리뷰 PASS): 완료 이중 보상 차단(순서 보장+23505 멱등), 로그아웃 로컬 PII 정리, mock 저장소 user 네임스페이스, AI 키 dev 전용 가드 — semgrep 0건, RLS 33/33
+- 검증: 테스트 228개(커버리지 96.1/84.8/96.4%), E2E 웹 Playwright 35 PASS(mock 풀루프 + supabase 가입→온보딩→DB 반영)
+- 잔여: 실기기 검증(턴 지연 ≤4s 측정·음성 완주 — 사용자 액션), U11 OAuth 보류
+
 ## 2026-06-12 (세션 2) — T2 완결 + T4 Supabase (보안 민감 ted-run) `6cc31f1`
 
 - T2: 짧은 발화 벤치마크(`spike/bench.mts`) — 현행 모델+TTS 스트리밍 중앙값 3.51s ✅, gpt-4o-mini 조합 기각 (ADR-0003 갱신)
