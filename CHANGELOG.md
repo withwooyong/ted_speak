@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-06-13 (세션 5) — Phase 2 W2 프리토킹 기반 (보안 민감 ted-run)
+
+전략: **기반부터** — Expo Go에서 완결 가능한 토대(스키마/RLS·세션 로직·UI)를 전송 인터페이스 뒤에
+구현. 라이브 Realtime WebRTC 전송·실기기 검증은 dev build 후속으로 이월(ADR-0008).
+
+- **스키마/RLS**: `tutor_sessions`/`tutor_turns`(lesson 패턴 미러 — 본인 행만·세션 삭제 불가·턴 불변 로그).
+  **안티-파밍**: `revoke insert,update` + `grant insert(user_id,topic)`만, 완료는 `complete_tutor_session`
+  SECURITY DEFINER RPC로만(duration_seconds를 서버가 `now()-started_at`로 산정 — 클라 위조 차단).
+  일일 캡은 완료 duration + 진행 중 경과시간(미완료 우회 차단)을 합산. RLS 52케이스(튜터 16 추가)
+- **세션 상태머신**(`tutor-core.ts`, 순수): topic→connecting→active→ending→summary, 5분 세션 cap·턴당
+  30초·히스토리 6턴 윈도우·교정 집계 요약. **저장소/캡**(`tutor-repo.ts`): mock/supabase + 일일 캡(5분/일)
+- **전송 계층**(`tutor-transport.ts`): `TutorTransport` 인터페이스 + `MockTutorTransport`(결정적, 텍스트
+  미리보기·테스트) + `RealtimeTutorTransport` 이월 스텁(dev build 필요). **UI**(`(tabs)/tutor.tsx`):
+  주제 선택→세션→요약, 일일 캡 잠금, 텍스트 폴백
+- **이중 리뷰**: 2a 품질(언마운트 정리·더블탭 가드 수정), 2b 적대적 보안(캡 위조 HIGH 수정·재리뷰 통과)
+- **검증**: vitest 327개(커버리지 94.3/86.4/96.9), RLS 52/52, E2E tutor 플로우 6/6(주제→세션→요약). ADR-0008
+- 이월(후속, dev build 전제): 라이브 WebRTC 전송·실마이크 스트리밍·실기기 5분 완주·시나리오별 비용 재측정
+
 ## 2026-06-13 (세션 4) — P1.5 다듬기 + Phase 2 W1 Realtime 스파이크
 
 ### P1.5 다듬기: 재로그인 하이드레이트 + reply clamp (보안 민감 ted-run) `3f90b77`

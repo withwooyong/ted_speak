@@ -199,6 +199,130 @@ try {
     check('본인도 턴 삭제 불가 (불변 로그)', (turnDel?.length ?? 0) === 0);
   }
 
+  console.log('\n■ tutor_sessions / tutor_turns (프리토킹 — P2 W2)');
+  {
+    const { data: ts, error: tsErr } = await userA.client
+      .from('tutor_sessions')
+      .insert({ user_id: userA.id, topic: 'hobbies' })
+      .select()
+      .single();
+    check('본인 튜터 세션 생성 가능', !!ts && !tsErr, tsErr?.message);
+    const tutorSessionId = ts!.id;
+
+    const { error: tsSpoof } = await userB.client
+      .from('tutor_sessions')
+      .insert({ user_id: userA.id, topic: 'evil' });
+    check('타인 명의 튜터 세션 생성 불가', !!tsSpoof);
+
+    const { data: tsView } = await userB.client
+      .from('tutor_sessions')
+      .select('id')
+      .eq('id', tutorSessionId);
+    check('타인 튜터 세션은 보이지 않는다', (tsView?.length ?? 0) === 0);
+
+    const { data: tsUpd } = await userB.client
+      .from('tutor_sessions')
+      .update({ status: 'completed' })
+      .eq('id', tutorSessionId)
+      .select();
+    check('타인 튜터 세션 갱신 불가', (tsUpd?.length ?? 0) === 0);
+
+    // ── 안티-파밍: 본인도 lifecycle 컬럼을 직접 위조할 수 없다 (grant 미부여) ──
+    // duration_seconds/turn_count/started_at/status를 직접 쓰면 일일 캡이 무력화되므로
+    // insert는 (user_id, topic)만, 완료는 complete_tutor_session RPC만 허용한다.
+    const { error: durInsert } = await userA.client
+      .from('tutor_sessions')
+      .insert({ user_id: userA.id, topic: 'hobbies', duration_seconds: 0 });
+    check('duration_seconds 직접 insert 불가 (grant)', !!durInsert, durInsert?.message);
+
+    const { error: durForge } = await userA.client
+      .from('tutor_sessions')
+      .update({ duration_seconds: 0 })
+      .eq('id', tutorSessionId);
+    check('본인 duration_seconds 직접 update 불가 (캡 우회 차단)', !!durForge, durForge?.message);
+
+    const { error: turnForge } = await userA.client
+      .from('tutor_sessions')
+      .update({ turn_count: 9999 })
+      .eq('id', tutorSessionId);
+    check('본인 turn_count 직접 update 불가', !!turnForge, turnForge?.message);
+
+    const { error: statusForge } = await userA.client
+      .from('tutor_sessions')
+      .update({ status: 'completed' })
+      .eq('id', tutorSessionId);
+    check('본인 status 직접 update 불가 (RPC만 완료)', !!statusForge, statusForge?.message);
+
+    // ── 서버 권위 완료 RPC ──
+    // 타인 세션은 RPC로도 완료 불가 (함수 내 user_id = auth.uid() 가드)
+    await userB.client.rpc('complete_tutor_session', {
+      p_session_id: tutorSessionId,
+      p_turn_count: 1,
+      p_summary: {},
+    });
+    const { data: afterBRpc } = await userA.client
+      .from('tutor_sessions')
+      .select('status')
+      .eq('id', tutorSessionId)
+      .single();
+    check('타인은 RPC로도 세션 완료 불가', afterBRpc?.status === 'in_progress', JSON.stringify(afterBRpc));
+
+    // 본인 세션은 RPC로 완료되고 duration_seconds를 서버가 산정한다
+    const { error: rpcErr } = await userA.client.rpc('complete_tutor_session', {
+      p_session_id: tutorSessionId,
+      p_turn_count: 3,
+      p_summary: { ok: true },
+    });
+    const { data: afterARpc } = await userA.client
+      .from('tutor_sessions')
+      .select('status, duration_seconds, turn_count')
+      .eq('id', tutorSessionId)
+      .single();
+    check(
+      '본인 세션 RPC 완료 — status·서버 duration 산정',
+      !rpcErr && afterARpc?.status === 'completed' && typeof afterARpc?.duration_seconds === 'number' && afterARpc?.turn_count === 3,
+      JSON.stringify(afterARpc),
+    );
+
+    // 세션 삭제 차단 — cascade로 턴(불변 로그)이 우회 삭제되는 것을 막는다
+    const { data: tsDel } = await userA.client
+      .from('tutor_sessions')
+      .delete()
+      .eq('id', tutorSessionId)
+      .select();
+    check('본인 튜터 세션도 삭제 불가 (불변 로그 보존)', (tsDel?.length ?? 0) === 0);
+
+    const { error: turnOk } = await userA.client
+      .from('tutor_turns')
+      .insert({ session_id: tutorSessionId, order: 1, role: 'user', transcript: 'hello ted' });
+    check('본인 튜터 세션에 턴 추가 가능', !turnOk, turnOk?.message);
+
+    const { error: turnSpoof } = await userB.client
+      .from('tutor_turns')
+      .insert({ session_id: tutorSessionId, order: 2, role: 'user', transcript: 'evil' });
+    check('타인 튜터 세션에 턴 추가 불가', !!turnSpoof);
+
+    const { data: turnLeak } = await userB.client
+      .from('tutor_turns')
+      .select('transcript')
+      .eq('session_id', tutorSessionId);
+    check('타인 튜터 대화 내용 열람 불가', (turnLeak?.length ?? 0) === 0);
+
+    // 턴 불변성 — 본인조차 수정·삭제 불가
+    const { data: turnEdit } = await userA.client
+      .from('tutor_turns')
+      .update({ transcript: '조작' })
+      .eq('session_id', tutorSessionId)
+      .select();
+    check('본인도 튜터 턴 수정 불가 (불변 로그)', (turnEdit?.length ?? 0) === 0);
+    const { data: turnDel } = await userA.client
+      .from('tutor_turns')
+      .delete()
+      .eq('session_id', tutorSessionId)
+      .select();
+    check('본인도 튜터 턴 삭제 불가 (불변 로그)', (turnDel?.length ?? 0) === 0);
+  }
+
   console.log('\n■ user_progress + 통계 트리거');
   {
     const { error } = await userA.client

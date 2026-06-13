@@ -12,3 +12,5 @@ packages/ai/spike/out/
 coverage/
 e2e/screenshots/
 e2e/results.json
+e2e/tutor-results.json
+e2e/console-errors.log

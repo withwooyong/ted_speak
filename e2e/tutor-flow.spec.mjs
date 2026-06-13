@@ -1,0 +1,153 @@
+/**
+ * TalkTed E2E Tests — 프리토킹(AI 튜터) 플로우 (P2 W2)
+ * 시나리오 T1~T6: Dev Mock Auth + 목 전송으로 주제→세션→요약 동선 검증
+ *
+ * 실행: node e2e/tutor-flow.spec.mjs
+ * 전제: Expo web 서버가 http://localhost:8082 에서 실행 중 (npx expo start --web --port 8082)
+ * 주: page.goto는 웹 메모리 스토어(auth)를 리셋하므로, 탭 이동은 SPA 내 클릭으로 한다.
+ */
+import { chromium } from 'playwright';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SCREENSHOTS_DIR = path.join(__dirname, 'screenshots');
+const BASE_URL = 'http://localhost:8082';
+const TIMEOUT = 15000;
+
+const results = [];
+const pass = (name, note = '') => {
+  results.push({ scenario: name, status: 'PASS', note });
+  console.log(`  ✓ PASS  ${name}${note ? ' — ' + note : ''}`);
+};
+const fail = (name, reason) => {
+  results.push({ scenario: name, status: 'FAIL', reason });
+  console.error(`  ✗ FAIL  ${name} — ${reason}`);
+};
+const info = (m) => console.log(`  ℹ  ${m}`);
+
+async function screenshot(page, name) {
+  if (!fs.existsSync(SCREENSHOTS_DIR)) fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
+  await page.screenshot({ path: path.join(SCREENSHOTS_DIR, `${name}.png`), fullPage: true }).catch(() => {});
+}
+
+/** dev mock 로그인 + 온보딩 4단계 → 홈 (mock-flow와 동일 동선) */
+async function loginAndOnboard(page) {
+  await page.goto(BASE_URL + '/', { waitUntil: 'networkidle', timeout: TIMEOUT });
+  await page.waitForTimeout(1500);
+  await page.locator('text=개발용 로그인').first().click();
+  await page.waitForTimeout(2000);
+
+  const content = await page.content();
+  if (content.includes('학습 목표') || content.includes('STEP 1') || page.url().includes('onboarding')) {
+    const next = page.locator('text=다음');
+    await page.locator('text=일상 회화').first().click();
+    await page.waitForTimeout(300);
+    await next.first().click();
+    await page.waitForTimeout(800);
+    await page.locator('text=초급').first().click();
+    await page.waitForTimeout(300);
+    await next.first().click();
+    await page.waitForTimeout(800);
+    await page.locator('text=10분').first().click();
+    await page.waitForTimeout(300);
+    await next.first().click();
+    await page.waitForTimeout(800);
+    const later = page.locator('text=나중에');
+    if ((await later.count()) > 0) await later.first().click();
+    else await page.locator('text=텍스트로 학습').first().click();
+    await page.waitForTimeout(2000);
+  }
+  return page.url();
+}
+
+async function run() {
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  page.on('console', (m) => {
+    if (m.type() === 'error') fs.appendFileSync(path.join(__dirname, 'console-errors.log'), `[tutor] ${m.text()}\n`);
+  });
+
+  try {
+    // T1: 로그인 + 온보딩 → 홈
+    const url = await loginAndOnboard(page);
+    if (url.includes('home') || url.includes('tabs')) pass('T1-home', '온보딩 완료 후 홈');
+    else { await screenshot(page, 't1-not-home'); fail('T1-home', `홈 아님: ${url}`); }
+
+    // T2: AI 튜터 탭으로 이동 (탭바 클릭 — goto는 auth 리셋)
+    await page.locator('text=AI 튜터').first().click();
+    await page.waitForTimeout(1500);
+    const tutorContent = await page.content();
+    if (tutorContent.includes('텍스트 미리보기') || tutorContent.includes('주제를 골라')) {
+      pass('T2-tutor-tab', '튜터 탭 — 주제 선택 화면 + 미리보기 배너');
+    } else {
+      await screenshot(page, 't2-tutor-fail');
+      fail('T2-tutor-tab', '주제 선택 화면 미표시');
+    }
+    await screenshot(page, 't2-topic-select');
+
+    // T3: 주제 선택 → 세션 진입
+    const topic = page.locator('text=취미와 여가').first();
+    await topic.waitFor({ timeout: TIMEOUT });
+    await topic.click();
+    await page.waitForTimeout(2000);
+    const inSession = await page.locator('text=대화 끝내기').count();
+    if (inSession > 0) pass('T3-session-start', '주제 선택 → 세션 active');
+    else { await screenshot(page, 't3-session-fail'); fail('T3-session-start', '세션 화면 미진입'); }
+    await screenshot(page, 't3-session');
+
+    // T4: 텍스트 전송 → Ted 응답
+    const input = page.locator('input[placeholder="영어로 입력…"]').first();
+    const hasInput = await input.count();
+    if (hasInput > 0) {
+      await input.fill('I like hiking on weekends');
+      await page.locator('text=전송').first().click();
+      await page.waitForTimeout(1500);
+      const afterSend = await page.content();
+      if (afterSend.includes('Ted')) pass('T4-ted-reply', '텍스트 전송 후 Ted 응답 노출');
+      else { await screenshot(page, 't4-no-reply'); fail('T4-ted-reply', 'Ted 응답 미표시'); }
+    } else {
+      await screenshot(page, 't4-no-input');
+      fail('T4-ted-reply', '텍스트 입력 필드 없음');
+    }
+    await screenshot(page, 't4-after-send');
+
+    // T5: 대화 끝내기 → 요약
+    await page.locator('text=대화 끝내기').first().click();
+    await page.waitForTimeout(2000);
+    const summary = await page.content();
+    if (summary.includes('대화 요약') || summary.includes('새 대화 시작')) {
+      pass('T5-summary', '대화 종료 → 요약 화면');
+    } else {
+      await screenshot(page, 't5-no-summary');
+      fail('T5-summary', '요약 화면 미표시');
+    }
+    await screenshot(page, 't5-summary');
+
+    // T6: 요약에서 새 대화로 복귀
+    const restart = page.locator('text=새 대화 시작');
+    if ((await restart.count()) > 0) {
+      await restart.first().click();
+      await page.waitForTimeout(1500);
+      const back = await page.content();
+      if (back.includes('텍스트 미리보기') || back.includes('주제를 골라')) pass('T6-restart', '새 대화 → 주제 선택 복귀');
+      else fail('T6-restart', '주제 선택 복귀 실패');
+    } else {
+      fail('T6-restart', '"새 대화 시작" 버튼 없음');
+    }
+  } catch (e) {
+    await screenshot(page, 'tutor-error');
+    fail('tutor-flow', `예외: ${e.message}`);
+  } finally {
+    await browser.close();
+  }
+
+  const passed = results.filter((r) => r.status === 'PASS').length;
+  const failed = results.filter((r) => r.status === 'FAIL').length;
+  fs.writeFileSync(path.join(__dirname, 'tutor-results.json'), JSON.stringify(results, null, 2));
+  console.log(`\n${'─'.repeat(48)}\n결과: ${passed} 통과 / ${failed} 실패`);
+  process.exit(failed === 0 ? 0 : 1);
+}
+
+run();
