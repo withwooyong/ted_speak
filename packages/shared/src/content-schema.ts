@@ -57,3 +57,56 @@ export type Drill = z.infer<typeof DrillSchema>;
 export type ConversationScenario = z.infer<typeof ConversationScenarioSchema>;
 export type Lesson = z.infer<typeof LessonSchema>;
 export type Course = z.infer<typeof CourseSchema>;
+
+// ── 롤플레이 시나리오 (P2 W3) ────────────────────────────────────────────────
+// 프리토킹(코드 상수 TUTOR_TOPICS)과 달리 역할·목표·성공 기준이 있는 콘텐츠라
+// content/roleplay/*.json + zod 단일 출처로 관리한다(시드 레슨과 동형).
+
+/** 학습자가 대화 중 달성할 목표 1개 — 종료 시 체크리스트로 노출 */
+export const RoleplayObjectiveSchema = z.object({
+  id: z.string().min(1),
+  /** 사용자 노출 라벨(한글) */
+  label: z.string().min(1),
+  /** 영문 라벨 */
+  labelEn: z.string().min(1),
+});
+
+export const RoleplayScenarioSchema = z
+  .object({
+    id: z.string().min(1),
+    title: z.string().min(1),
+    titleEn: z.string().min(1),
+    level: z.enum(CEFR_LEVELS),
+    order: z.number().int().positive(),
+    /** 상황 설명(한글, 사용자 노출) */
+    setting: z.string().min(1),
+    /** 학습자 배역(한글) */
+    learnerRole: z.string().min(1),
+    /** Ted 배역(한글, 세션 헤더 노출) */
+    tedRole: z.string().min(1),
+    /** 모델 system 프롬프트에 주입할 Ted 배역·톤(영문) */
+    tedPersona: z.string().min(1),
+    /** Ted 첫 발화(영문) — 세션 시작 시 노출/주입 */
+    openingLine: z.string().min(1),
+    /** 달성 목표 2~4개 */
+    objectives: z.array(RoleplayObjectiveSchema).min(2).max(4),
+  })
+  // objective id는 시나리오 안에서 고유해야 한다(목표 추적이 id로 머지됨)
+  .refine((s) => new Set(s.objectives.map((o) => o.id)).size === s.objectives.length, {
+    message: 'objective ids must be unique within a scenario',
+    path: ['objectives'],
+  });
+
+export const RoleplayCollectionSchema = z
+  .object({
+    scenarios: z.array(RoleplayScenarioSchema).min(1),
+  })
+  // 시나리오 id는 컬렉션 안에서 고유해야 한다(findScenario·세션 topic 저장 키)
+  .refine((c) => new Set(c.scenarios.map((s) => s.id)).size === c.scenarios.length, {
+    message: 'scenario ids must be unique',
+    path: ['scenarios'],
+  });
+
+export type RoleplayObjective = z.infer<typeof RoleplayObjectiveSchema>;
+export type RoleplayScenario = z.infer<typeof RoleplayScenarioSchema>;
+export type RoleplayCollection = z.infer<typeof RoleplayCollectionSchema>;

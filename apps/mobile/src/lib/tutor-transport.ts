@@ -9,11 +9,13 @@
  *  - `RealtimeTutorTransport`: 라이브 음성(WebRTC) — **이월 스텁**. 실제 구현·실기기는 후속
  *    (커스텀 dev build 필요). W1 스파이크(packages/ai/spike/realtime.mts)가 프로토콜 레퍼런스.
  */
-import type { Correction } from '@ted-speak/shared';
+import type { Correction, RoleplayScenario } from '@ted-speak/shared';
 
 export interface TutorReply {
   reply: string;
   corrections: Correction[];
+  /** 이 턴에 달성된 롤플레이 목표 id — 프리토킹/일반 목에서는 미지정 */
+  metObjectiveIds?: string[];
 }
 
 export interface TutorTransportCallbacks {
@@ -75,6 +77,68 @@ export function createMockTutorTransport(
       cursor += 1;
       // 방어 복제 — 호출자가 corrections 배열을 변형해도 스크립트 원본을 오염시키지 않는다
       callbacks.onTedReply({ reply: reply.reply, corrections: [...reply.corrections] });
+    },
+
+    bargeIn() {
+      // 목에는 진행 중인 발화가 없다 — no-op
+    },
+
+    close() {
+      closed = true;
+      connected = false;
+    },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 롤플레이 목 전송 — 시나리오 목표를 턴마다 순서대로 달성 신호 (P2 W3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 롤플레이 진행용 후속 멘트 (순환) — 배역 무관하게 자연스러운 짧은 응답 */
+const ROLEPLAY_FOLLOWUPS: readonly string[] = [
+  'Great, thank you! What would you like next?',
+  'Perfect, got it. Anything else?',
+  'Sounds good — let’s keep going.',
+];
+/** 모든 목표 달성 후의 마무리 멘트 */
+const ROLEPLAY_CLOSING = 'Wonderful — I think we covered everything. Well done! 🎉';
+
+export interface RoleplayMockOptions {
+  /** 응답 텍스트 오버라이드(순환) — 목표 신호는 그대로 시나리오 objectives를 따른다 */
+  replies?: string[];
+}
+
+/**
+ * 롤플레이용 결정적 목 전송.
+ * sendUserText 호출마다 시나리오 objectives를 **순서대로 1개씩** 달성 신호하고,
+ * 모든 목표를 신호한 뒤에는 더 신호하지 않는다(코어가 합집합 머지로 판정).
+ * 텍스트 미리보기/폴백 경로(ADR-0005)도 이 전송을 공유한다. 라이브 판정은 이월(Realtime).
+ */
+export function createRoleplayMockTransport(
+  scenario: RoleplayScenario,
+  callbacks: TutorTransportCallbacks,
+  opts: RoleplayMockOptions = {},
+): TutorTransport {
+  const followups = opts.replies && opts.replies.length > 0 ? opts.replies : ROLEPLAY_FOLLOWUPS;
+  let closed = false;
+  let connected = false;
+  let turn = 0;
+
+  return {
+    async connect() {
+      connected = true;
+      callbacks.onConnected?.();
+    },
+
+    async sendUserText(_text) {
+      if (closed || !connected) return;
+      const objective = scenario.objectives[turn];
+      const reply = objective
+        ? followups[turn % followups.length]
+        : ROLEPLAY_CLOSING;
+      const metObjectiveIds = objective ? [objective.id] : [];
+      turn += 1;
+      callbacks.onTedReply({ reply, corrections: [], metObjectiveIds });
     },
 
     bargeIn() {

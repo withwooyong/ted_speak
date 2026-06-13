@@ -37,12 +37,15 @@ barge-in 175ms, ~$0.035–0.063/분. AI 튜터는 Realtime, 레슨은 turn-based
 - tutor_sessions 스키마 (lesson_sessions 패턴 — RLS·불변 턴 로그 동일 원칙, **보안 민감**)
 - **완료 기준**: 실기기에서 5분 프리토킹 완주, 일일 상한 동작
 
-### W3. 롤플레이 시나리오
+### W3. 롤플레이 시나리오 ✅ 완료 (2026-06-13, 세션 6)
 
 - 시드 시나리오 4종(레스토랑·공항·면접·호텔) — content/ JSON 스키마 확장(zod 단일 출처),
   `validate:content` 통과
 - 역할·목표·종료 조건이 있는 대화 (프리토킹과 같은 전송 계층, 프롬프트만 분기)
 - **완료 기준**: 시나리오 1개 완주 시 목표 달성 판정 노출
+- **완료**: W2 seam 재사용(새 테이블·전송 없이 `tutor_sessions`·`TutorTransport`에 얹음, ADR-0009).
+  목표 추적은 전송→코어 `metObjectiveIds` 신호(코어 신뢰 경계). vitest 353·E2E tutor 10/10(롤플레이 4).
+  작업계획서 `docs/plans/p2-w3-roleplay.md`.
 
 ### W4. 발음 점수·피드백 UI (결정 필요 — 스파이크 선행)
 

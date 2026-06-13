@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Correction } from '@ted-speak/shared';
+import type { Correction, RoleplayObjective } from '@ted-speak/shared';
 
 import {
   applyTedTurn,
@@ -215,5 +215,91 @@ describe('summarizeTutor', () => {
     const sum = summarizeTutor(s);
     expect(sum.improvements.length).toBeLessThanOrEqual(2);
     expect(sum.improvements.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('프리토킹(목표 없음) 요약은 goal=null이다(회귀)', () => {
+    let s = active();
+    s = applyUserTurn(s, { transcript: 'hi', seconds: 3 });
+    s = applyTedTurn(s, { reply: 'hello', corrections: [] });
+    expect(summarizeTutor(s).goal).toBeNull();
+  });
+});
+
+// ── 롤플레이 목표 추적 (P2 W3) ────────────────────────────────────────────────
+
+const OBJECTIVES: RoleplayObjective[] = [
+  { id: 'greet', label: '인사하기', labelEn: 'Greet' },
+  { id: 'order', label: '주문하기', labelEn: 'Order' },
+  { id: 'pay', label: '계산하기', labelEn: 'Pay' },
+];
+
+function roleplayActive(): TutorState {
+  return markActive(startConnecting(createTutorState('restaurant', OBJECTIVES)));
+}
+
+describe('롤플레이 — 목표 추적', () => {
+  it('createTutorState에 objectives를 주입하면 상태에 담기고 metObjectiveIds는 빈 배열', () => {
+    const s = createTutorState('restaurant', OBJECTIVES);
+    expect(s.objectives).toEqual(OBJECTIVES);
+    expect(s.metObjectiveIds).toEqual([]);
+  });
+
+  it('objectives 미지정(프리토킹)이면 빈 objectives로 시작한다(회귀)', () => {
+    const s = createTutorState(TOPIC.id);
+    expect(s.objectives).toEqual([]);
+    expect(s.metObjectiveIds).toEqual([]);
+  });
+
+  it('applyTedTurn의 metObjectiveIds를 누적한다', () => {
+    let s = roleplayActive();
+    s = applyUserTurn(s, { transcript: 'Hello', seconds: 2 });
+    s = applyTedTurn(s, { reply: 'Hi!', corrections: [], metObjectiveIds: ['greet'] });
+    expect(s.metObjectiveIds).toEqual(['greet']);
+  });
+
+  it('목표 머지는 중복을 제거한다(같은 id 재신호 무시)', () => {
+    let s = roleplayActive();
+    s = applyUserTurn(s, { transcript: 'a', seconds: 1 });
+    s = applyTedTurn(s, { reply: 'r1', corrections: [], metObjectiveIds: ['greet'] });
+    s = applyTedTurn(s, { reply: 'r2', corrections: [], metObjectiveIds: ['greet', 'order'] });
+    expect(s.metObjectiveIds).toEqual(['greet', 'order']);
+  });
+
+  it('objectives에 없는 미지의 id는 채택하지 않는다(신뢰 경계)', () => {
+    let s = roleplayActive();
+    s = applyUserTurn(s, { transcript: 'a', seconds: 1 });
+    s = applyTedTurn(s, { reply: 'r', corrections: [], metObjectiveIds: ['ghost', 'order'] });
+    expect(s.metObjectiveIds).toEqual(['order']);
+  });
+
+  it('metObjectiveIds 미지정 Ted 턴은 목표를 바꾸지 않는다(프리토킹 호환)', () => {
+    let s = roleplayActive();
+    s = applyUserTurn(s, { transcript: 'a', seconds: 1 });
+    s = applyTedTurn(s, { reply: 'r', corrections: [] });
+    expect(s.metObjectiveIds).toEqual([]);
+  });
+
+  it('요약 goal: 부분 달성이면 achieved=false, 체크리스트에 met 표시', () => {
+    let s = roleplayActive();
+    s = applyUserTurn(s, { transcript: 'a', seconds: 1 });
+    s = applyTedTurn(s, { reply: 'r', corrections: [], metObjectiveIds: ['greet', 'order'] });
+    const goal = summarizeTutor(s).goal;
+    expect(goal).not.toBeNull();
+    expect(goal?.total).toBe(3);
+    expect(goal?.met).toBe(2);
+    expect(goal?.achieved).toBe(false);
+    expect(goal?.checklist.find((c) => c.id === 'greet')?.met).toBe(true);
+    expect(goal?.checklist.find((c) => c.id === 'pay')?.met).toBe(false);
+    // 체크리스트는 objectives 순서·라벨을 보존한다
+    expect(goal?.checklist.map((c) => c.id)).toEqual(['greet', 'order', 'pay']);
+  });
+
+  it('요약 goal: 전체 달성이면 achieved=true', () => {
+    let s = roleplayActive();
+    s = applyUserTurn(s, { transcript: 'a', seconds: 1 });
+    s = applyTedTurn(s, { reply: 'r', corrections: [], metObjectiveIds: ['greet', 'order', 'pay'] });
+    const goal = summarizeTutor(s).goal;
+    expect(goal?.achieved).toBe(true);
+    expect(goal?.met).toBe(3);
   });
 });

@@ -1,9 +1,10 @@
-import { colors, radius, type Correction } from '@ted-speak/shared';
+import { colors, radius, type Correction, type RoleplayScenario } from '@ted-speak/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { findScenario, roleplayScenarios } from '@ted-speak/content';
 import { getTutorRepo } from '@/lib/tutor';
 import {
   applyTedTurn,
@@ -22,7 +23,11 @@ import {
   type TutorState,
 } from '@/lib/tutor-core';
 import { DAILY_CAP_SECONDS, remainingDailyCap } from '@/lib/tutor-repo';
-import { createMockTutorTransport, type TutorTransport } from '@/lib/tutor-transport';
+import {
+  createMockTutorTransport,
+  createRoleplayMockTransport,
+  type TutorTransport,
+} from '@/lib/tutor-transport';
 
 /** mm:ss 포맷 */
 function clock(seconds: number): string {
@@ -126,43 +131,53 @@ export default function Tutor() {
     })();
   }, [phase, queryClient]);
 
-  const startSession = useCallback(async (topicId: string) => {
-    if (startingRef.current) return; // 더블탭 가드 — 이중 세션 생성·전송 누수 방지
-    startingRef.current = true;
-    try {
-      orderRef.current = 0;
-      sessionIdRef.current = null;
-      setState(startConnecting(createTutorState(topicId)));
-      try {
-        sessionIdRef.current = (await getTutorRepo()?.createSession(topicId))?.id ?? null;
-      } catch {
-        // 세션 생성 실패 — 목 전송으로 데모는 계속(저장만 생략)
+  // onTedReply 핸들러 — 프리토킹/롤플레이 공유. 코어에 적용(metObjectiveIds 포함) + 턴 영속.
+  const handleTedReply = useCallback(
+    (reply: { reply: string; corrections: Correction[]; metObjectiveIds?: string[] }) => {
+      setState((s) => (s ? applyTedTurn(s, reply) : s));
+      const order = (orderRef.current += 1);
+      if (sessionIdRef.current) {
+        // repo는 매번 새로 조회한다 — 세션 중 로그아웃 시 옛 사용자에게 쓰지 않도록(스테일 repo 방지)
+        void getTutorRepo()
+          ?.appendTurn(sessionIdRef.current, {
+            order,
+            role: 'assistant',
+            transcript: reply.reply,
+            corrections: reply.corrections,
+          })
+          .catch(() => {});
       }
-      const transport = createMockTutorTransport(topicId, {
-        onTedReply: (reply) => {
-          setState((s) => (s ? applyTedTurn(s, reply) : s));
-          const order = (orderRef.current += 1);
-          if (sessionIdRef.current) {
-            // repo는 매번 새로 조회한다 — 세션 중 로그아웃 시 옛 사용자에게 쓰지 않도록(스테일 repo 방지)
-            void getTutorRepo()
-              ?.appendTurn(sessionIdRef.current, {
-                order,
-                role: 'assistant',
-                transcript: reply.reply,
-                corrections: reply.corrections,
-              })
-              .catch(() => {});
-          }
-        },
-      });
-      transportRef.current = transport;
-      await transport.connect();
-      startTsRef.current = Date.now();
-      setState((s) => (s ? markActive(s) : s));
-    } finally {
-      startingRef.current = false;
-    }
-  }, []);
+    },
+    [],
+  );
+
+  // 롤플레이는 topicId에 scenario.id를 저장한다(프리토킹과 동일 tutor_sessions·캡 공유).
+  const startSession = useCallback(
+    async (topicId: string, scenario?: RoleplayScenario) => {
+      if (startingRef.current) return; // 더블탭 가드 — 이중 세션 생성·전송 누수 방지
+      startingRef.current = true;
+      try {
+        orderRef.current = 0;
+        sessionIdRef.current = null;
+        setState(startConnecting(createTutorState(topicId, scenario?.objectives ?? [])));
+        try {
+          sessionIdRef.current = (await getTutorRepo()?.createSession(topicId))?.id ?? null;
+        } catch {
+          // 세션 생성 실패 — 목 전송으로 데모는 계속(저장만 생략)
+        }
+        const transport = scenario
+          ? createRoleplayMockTransport(scenario, { onTedReply: handleTedReply })
+          : createMockTutorTransport(topicId, { onTedReply: handleTedReply });
+        transportRef.current = transport;
+        await transport.connect();
+        startTsRef.current = Date.now();
+        setState((s) => (s ? markActive(s) : s));
+      } finally {
+        startingRef.current = false;
+      }
+    },
+    [handleTedReply],
+  );
 
   const send = useCallback(async () => {
     const text = input.trim();
@@ -214,6 +229,8 @@ export default function Tutor() {
         ) : (
           <>
             <Text style={styles.capNote}>오늘 남은 대화 시간 약 {clock(remaining)}</Text>
+
+            <Text style={styles.groupLabel}>자유 대화</Text>
             <View style={styles.topicList}>
               {TUTOR_TOPICS.map((t) => (
                 <Pressable
@@ -222,6 +239,23 @@ export default function Tutor() {
                   onPress={() => void startSession(t.id)}>
                   <Text style={styles.topicTitle}>{t.title}</Text>
                   <Text style={styles.topicEn}>{t.titleEn}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.groupLabel}>롤플레이</Text>
+            <Text style={styles.groupSub}>역할을 맡아 상황 속에서 목표를 달성해 봐요.</Text>
+            <View style={styles.topicList}>
+              {roleplayScenarios.map((s) => (
+                <Pressable
+                  key={s.id}
+                  style={styles.topicCard}
+                  onPress={() => void startSession(s.id, s)}>
+                  <View style={styles.scenarioHead}>
+                    <Text style={styles.topicTitle}>{s.title}</Text>
+                    <Text style={styles.roleBadge}>{s.tedRole}</Text>
+                  </View>
+                  <Text style={styles.scenarioSetting}>{s.setting}</Text>
                 </Pressable>
               ))}
             </View>
@@ -250,6 +284,21 @@ export default function Tutor() {
           <Stat value={`${state.turnCount}`} label="주고받은 턴" />
         </View>
 
+        {sum.goal && (
+          <View style={[styles.goalCard, sum.goal.achieved && styles.goalCardDone]}>
+            <Text style={styles.goalTitle}>
+              {sum.goal.achieved
+                ? `목표 ${sum.goal.met}/${sum.goal.total} 달성 🎉`
+                : `목표 ${sum.goal.met}/${sum.goal.total} 달성`}
+            </Text>
+            {sum.goal.checklist.map((c) => (
+              <Text key={c.id} style={[styles.goalItem, c.met && styles.goalItemDone]}>
+                {c.met ? '✓' : '○'} {c.label}
+              </Text>
+            ))}
+          </View>
+        )}
+
         <Text style={styles.sectionLabel}>잘한 점</Text>
         {sum.strengths.map((s, i) => (
           <Text key={`s-${i}`} style={styles.bullet}>· {s}</Text>
@@ -274,23 +323,47 @@ export default function Tutor() {
   // active / ending — 대화 화면
   const remainingInSession = Math.max(0, SESSION_MAX_SECONDS - state.elapsedSeconds);
   const lastTed = state.history.findLast((h) => h.role === 'assistant');
+  const scenario = findScenario(state.topicId);
   const topic = findTopic(state.topicId);
+  const isRoleplay = state.objectives.length > 0;
+  const metIds = new Set(state.metObjectiveIds);
+  // 롤플레이 첫 발화: Ted 응답 전이면 시나리오 openingLine을 첫 버블로 노출(카운트 안 함)
+  const openingBubble = isRoleplay && !lastTed ? scenario?.openingLine : undefined;
 
   return (
     <View style={styles.container}>
       <View style={styles.sessionHeader}>
-        <Text style={styles.sessionTopic}>{topic?.title ?? '프리토킹'}</Text>
+        <Text style={styles.sessionTopic}>{scenario?.title ?? topic?.title ?? '프리토킹'}</Text>
         <Text style={styles.timer}>{clock(remainingInSession)}</Text>
       </View>
+      {isRoleplay && scenario && (
+        <Text style={styles.roleHint}>
+          Ted는 {scenario.tedRole} · 나는 {scenario.learnerRole}
+        </Text>
+      )}
 
       <ScrollView style={styles.convo} contentContainerStyle={styles.convoContent}>
-        {lastTed ? (
+        {lastTed || openingBubble ? (
           <View style={styles.tedBubble}>
             <Text style={styles.tedLabel}>Ted</Text>
-            <Text style={styles.tedText}>{lastTed.text}</Text>
+            <Text style={styles.tedText}>{lastTed?.text ?? openingBubble}</Text>
           </View>
         ) : (
           <Text style={styles.hint}>{topic?.titleEn} — 편하게 한 문장 말해 보세요.</Text>
+        )}
+
+        {isRoleplay && (
+          <View style={styles.objectives}>
+            <Text style={styles.objectivesLabel}>목표 {metIds.size}/{state.objectives.length}</Text>
+            {state.objectives.map((o) => {
+              const done = metIds.has(o.id);
+              return (
+                <Text key={o.id} style={[styles.objectiveItem, done && styles.objectiveDone]}>
+                  {done ? '✓' : '○'} {o.label}
+                </Text>
+              );
+            })}
+          </View>
         )}
 
         {state.corrections.length > 0 && (
@@ -353,16 +426,27 @@ const styles = StyleSheet.create({
   lockTitle: { color: colors.ink, fontSize: 17, fontWeight: '700' },
   lockSub: { color: colors.ink60, fontSize: 13, marginTop: 8, lineHeight: 19 },
 
+  groupLabel: { color: colors.ink, fontSize: 16, fontWeight: '800', marginTop: 24, marginBottom: 10 },
+  groupSub: { color: colors.ink60, fontSize: 13, marginTop: -4, marginBottom: 12, lineHeight: 19 },
   topicList: { gap: 12 },
   topicCard: { backgroundColor: colors.paper, borderRadius: radius.card, padding: 18, borderWidth: 1, borderColor: colors.ink12 },
   topicTitle: { color: colors.ink, fontSize: 17, fontWeight: '700' },
   topicEn: { color: colors.ink40, fontSize: 13, marginTop: 3 },
+  scenarioHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  roleBadge: { color: colors.tedDeep, backgroundColor: colors.tedSoft, fontSize: 12, fontWeight: '700', paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, overflow: 'hidden' },
+  scenarioSetting: { color: colors.ink60, fontSize: 13, marginTop: 6, lineHeight: 19 },
 
   connectingText: { color: colors.ink60, fontSize: 14, marginTop: 16 },
 
   sessionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 64, paddingBottom: 12 },
   sessionTopic: { color: colors.ink, fontSize: 18, fontWeight: '800' },
   timer: { color: colors.ted, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  roleHint: { color: colors.ink60, fontSize: 13, fontWeight: '600', paddingHorizontal: 24, paddingBottom: 4 },
+
+  objectives: { backgroundColor: colors.paper, borderRadius: radius.card, padding: 14, borderWidth: 1, borderColor: colors.ink12, gap: 6 },
+  objectivesLabel: { color: colors.ink, fontSize: 13, fontWeight: '800' },
+  objectiveItem: { color: colors.ink60, fontSize: 14, lineHeight: 21 },
+  objectiveDone: { color: colors.mint, fontWeight: '700' },
 
   convo: { flex: 1 },
   convoContent: { padding: 24, gap: 16 },
@@ -383,6 +467,12 @@ const styles = StyleSheet.create({
 
   endBtn: { alignItems: 'center', paddingVertical: 16, paddingBottom: 28 },
   endBtnText: { color: colors.ink40, fontSize: 14, fontWeight: '600' },
+
+  goalCard: { backgroundColor: colors.goldSoft, borderRadius: radius.card, padding: 18, marginTop: 18, gap: 6 },
+  goalCardDone: { backgroundColor: colors.mintSoft },
+  goalTitle: { color: colors.ink, fontSize: 17, fontWeight: '800', marginBottom: 4 },
+  goalItem: { color: colors.ink60, fontSize: 14, lineHeight: 22 },
+  goalItemDone: { color: colors.mint, fontWeight: '700' },
 
   summaryRow: { flexDirection: 'row', gap: 12, marginTop: 20, marginBottom: 8 },
   stat: { flex: 1, backgroundColor: colors.paper, borderRadius: radius.card, padding: 16, borderWidth: 1, borderColor: colors.ink12 },

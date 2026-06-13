@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## 2026-06-13 (세션 6) — Phase 2 W3 롤플레이 (일반 ted-run)
+
+전략: **W2 재사용 극대화** — 롤플레이(레스토랑·공항·면접·호텔)를 새 테이블·전송 없이 프리토킹 seam
+위에 얹는다. scenario id를 `tutor_sessions.topic`에 저장, 일일 캡·세션 cap 공유. 스키마 변경 없음 →
+보안 민감 아님(ADR-0009).
+
+- **콘텐츠 스키마**(`content-schema.ts`, zod 단일 출처): `RoleplayScenarioSchema`(역할·목표·성공 기준 ·
+  objectives 2~4 · CEFR · objective id 고유 refine) + `RoleplayCollectionSchema`(scenario id 고유). 시드
+  4종 `content/roleplay/scenarios.json`, `content/index.ts`에서 로드 시 검증 + `findScenario`. `validate:content` 통과
+- **코어 목표 추적**(`tutor-core.ts`, 순수, additive): `createTutorState(topic, objectives?)`,
+  `applyTedTurn`에 `metObjectiveIds` 머지(**시나리오에 존재하는 id만 채택·중복 제거 — 신뢰 경계**),
+  `summarizeTutor`가 `goal{total,met,achieved,checklist}` 반환(프리토킹은 `goal:null` — 회귀 보존)
+- **전송**(`tutor-transport.ts`): `TutorReply.metObjectiveIds` 계약 + `createRoleplayMockTransport`(턴마다
+  objective 순서대로 1개씩 결정적 신호, 텍스트 미리보기·폴백 공유). 라이브 판정은 모델(이월, 같은 seam)
+- **UI**(`(tabs)/tutor.tsx`): 주제 선택에 롤플레이 섹션(배역 배지·상황), 세션에 목표 체크리스트·
+  openingLine 첫 버블·배역 안내, 요약에 목표 달성 판정 카드(달성 시 mint). 토큰만 사용(인라인 hex 없음)
+- **리뷰·검증**: 독립 1차 리뷰 PASS(LOW 2 정리 — 머지 Set화·override 테스트). vitest 353(커버리지
+  94.7/87.3/97.2), E2E tutor 10/10(프리토킹 회귀 6 + 롤플레이 4: 시나리오→목표 3/3→판정). ADR-0009
+- 이월: 라이브 음성 도입 시 목표 판정을 모델 신호로 전환(seam 계약 `metObjectiveIds` 기정의), 통계
+  분리 필요 시 `tutor_sessions.kind` 도입(보안 민감)
+
 ## 2026-06-13 (세션 5) — Phase 2 W2 프리토킹 기반 (보안 민감 ted-run) `59cfb74`
 
 전략: **기반부터** — Expo Go에서 완결 가능한 토대(스키마/RLS·세션 로직·UI)를 전송 인터페이스 뒤에

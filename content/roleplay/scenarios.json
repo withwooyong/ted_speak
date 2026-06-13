@@ -1,0 +1,72 @@
+{
+  "scenarios": [
+    {
+      "id": "restaurant",
+      "title": "레스토랑에서 주문하기",
+      "titleEn": "At the Restaurant",
+      "level": "A2",
+      "order": 1,
+      "setting": "분위기 좋은 식당에 들어왔어요. 웨이터에게 자리를 안내받고 음식을 주문해 보세요.",
+      "learnerRole": "식당에 온 손님",
+      "tedRole": "웨이터",
+      "tedPersona": "You are a warm, patient waiter at a cozy restaurant. Greet the guest, help them find a table, take their order, and answer simple menu questions. Keep replies short (1-2 sentences) and encouraging, and gently rephrase if the learner makes a mistake.",
+      "openingLine": "Hi there, welcome! Just one person today? Let me find you a nice table.",
+      "objectives": [
+        { "id": "ask-table", "label": "자리 요청하기", "labelEn": "Ask for a table" },
+        { "id": "order-food", "label": "음식 주문하기", "labelEn": "Order a dish" },
+        { "id": "ask-bill", "label": "계산서 요청하기", "labelEn": "Ask for the bill" }
+      ]
+    },
+    {
+      "id": "airport",
+      "title": "공항 체크인하기",
+      "titleEn": "Airport Check-in",
+      "level": "A2",
+      "order": 2,
+      "setting": "비행기를 타러 공항에 왔어요. 체크인 카운터에서 직원과 대화하며 탑승권을 받아 보세요.",
+      "learnerRole": "출국하는 여행객",
+      "tedRole": "체크인 직원",
+      "tedPersona": "You are a friendly airline check-in agent. Ask for the passenger's destination, handle their luggage, ask seat preference, and hand over the boarding pass. Keep replies short and clear, and rephrase gently when the learner struggles.",
+      "openingLine": "Good morning! May I see your passport, please? Where are you flying today?",
+      "objectives": [
+        { "id": "give-destination", "label": "목적지 말하기", "labelEn": "State your destination" },
+        { "id": "check-bag", "label": "수하물 부치기", "labelEn": "Check a bag" },
+        { "id": "choose-seat", "label": "좌석 고르기", "labelEn": "Choose a seat" }
+      ]
+    },
+    {
+      "id": "interview",
+      "title": "영어 면접 보기",
+      "titleEn": "Job Interview",
+      "level": "B1",
+      "order": 3,
+      "setting": "지원한 회사에서 간단한 영어 면접을 봐요. 면접관의 질문에 자신 있게 답해 보세요.",
+      "learnerRole": "면접 지원자",
+      "tedRole": "면접관",
+      "tedPersona": "You are a kind but professional interviewer. Ask the candidate to introduce themselves, talk about a strength, and explain why they want the job. Keep questions short, follow up warmly, and encourage fuller answers without being harsh.",
+      "openingLine": "Thanks for coming in today. To start, could you tell me a little about yourself?",
+      "objectives": [
+        { "id": "introduce", "label": "자기소개하기", "labelEn": "Introduce yourself" },
+        { "id": "share-strength", "label": "강점 말하기", "labelEn": "Describe a strength" },
+        { "id": "explain-motivation", "label": "지원 동기 설명하기", "labelEn": "Explain why you want the job" }
+      ]
+    },
+    {
+      "id": "hotel",
+      "title": "호텔 체크인하기",
+      "titleEn": "Hotel Check-in",
+      "level": "A2",
+      "order": 4,
+      "setting": "예약한 호텔에 도착했어요. 프런트 직원과 대화하며 체크인하고 방을 안내받아 보세요.",
+      "learnerRole": "호텔 투숙객",
+      "tedRole": "호텔 프런트 직원",
+      "tedPersona": "You are a polite hotel receptionist. Confirm the guest's reservation, ask how many nights, explain breakfast time, and hand over the room key. Keep replies short and helpful, and rephrase gently if the learner makes a mistake.",
+      "openingLine": "Welcome to the Grand Hotel! Do you have a reservation with us tonight?",
+      "objectives": [
+        { "id": "confirm-booking", "label": "예약 확인하기", "labelEn": "Confirm your reservation" },
+        { "id": "ask-breakfast", "label": "조식 시간 묻기", "labelEn": "Ask about breakfast" },
+        { "id": "get-key", "label": "방 키 받기", "labelEn": "Get your room key" }
+      ]
+    }
+  ]
+}

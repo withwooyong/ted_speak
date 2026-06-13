@@ -136,6 +136,63 @@ async function run() {
     } else {
       fail('T6-restart', '"새 대화 시작" 버튼 없음');
     }
+
+    // ── 롤플레이 (P2 W3) ──────────────────────────────────────────────────────
+
+    // T7: 롤플레이 시나리오 선택 → 세션 진입 (목표 체크리스트 노출)
+    const scenario = page.locator('text=레스토랑에서 주문하기').first();
+    await scenario.waitFor({ timeout: TIMEOUT });
+    await scenario.click();
+    await page.waitForTimeout(2000);
+    const rpContent = await page.content();
+    if (rpContent.includes('목표 0/3') && rpContent.includes('웨이터')) {
+      pass('T7-roleplay-start', '시나리오 선택 → 세션 + 목표 체크리스트(0/3)');
+    } else {
+      await screenshot(page, 't7-roleplay-fail');
+      fail('T7-roleplay-start', '롤플레이 세션/목표 체크리스트 미표시');
+    }
+    await screenshot(page, 't7-roleplay-session');
+
+    // T8: 세 턴 진행 → 목표가 순차 달성된다 (목 전송이 턴마다 1개씩 신호)
+    const rpInput = page.locator('input[placeholder="영어로 입력…"]').first();
+    if ((await rpInput.count()) > 0) {
+      for (const msg of ['Hi, a table for one please', 'I will have a burger', 'Can I get the bill']) {
+        await rpInput.fill(msg);
+        await page.locator('text=전송').first().click();
+        await page.waitForTimeout(1200);
+      }
+      const afterTurns = await page.content();
+      if (afterTurns.includes('목표 3/3')) pass('T8-objectives-met', '세 턴 후 목표 3/3 달성');
+      else { await screenshot(page, 't8-objectives-fail'); fail('T8-objectives-met', '목표 미달성(3/3 아님)'); }
+    } else {
+      await screenshot(page, 't8-no-input');
+      fail('T8-objectives-met', '텍스트 입력 필드 없음');
+    }
+    await screenshot(page, 't8-objectives');
+
+    // T9: 대화 끝내기 → 요약에 목표 달성 판정 카드
+    await page.locator('text=대화 끝내기').first().click();
+    await page.waitForTimeout(2000);
+    const rpSummary = await page.content();
+    if (rpSummary.includes('목표 3/3 달성')) {
+      pass('T9-goal-card', '롤플레이 요약 — 목표 3/3 달성 판정');
+    } else {
+      await screenshot(page, 't9-no-goal');
+      fail('T9-goal-card', '목표 달성 판정 카드 미표시');
+    }
+    await screenshot(page, 't9-goal-summary');
+
+    // T10: 새 대화로 복귀 (롤플레이 후에도 주제 선택 복귀)
+    const rpRestart = page.locator('text=새 대화 시작');
+    if ((await rpRestart.count()) > 0) {
+      await rpRestart.first().click();
+      await page.waitForTimeout(1500);
+      const rpBack = await page.content();
+      if (rpBack.includes('롤플레이') || rpBack.includes('주제를 골라')) pass('T10-roleplay-restart', '롤플레이 후 주제 선택 복귀');
+      else fail('T10-roleplay-restart', '주제 선택 복귀 실패');
+    } else {
+      fail('T10-roleplay-restart', '"새 대화 시작" 버튼 없음');
+    }
   } catch (e) {
     await screenshot(page, 'tutor-error');
     fail('tutor-flow', `예외: ${e.message}`);
