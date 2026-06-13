@@ -1,5 +1,36 @@
 # CHANGELOG
 
+## 2026-06-13 (세션 9) — Phase 2 W5b 레슨 히스토리 (일반 ted-run, 커밋 `464557e`)
+
+전략: **W5 튜터 히스토리와 동일한 읽기 패턴을 레슨에 확장** — 스키마 변경 0(기존 RLS select 재사용).
+
+- **레슨 히스토리 읽기**(`progress-repo.ts`): `listSessions`/`getSession`/`getSessionTurns` 추가(Mock+Supabase).
+  레슨 RLS(본인 select·세션 소유권 위임)를 재사용해 **신규 RPC·grant 0**. corrections는 방어적 변환(신뢰 경계).
+  Mock은 완료 세션을 별도 `history` 맵에 보존(`getOrCreateSession`은 활성만 재개)해 웹/E2E 히스토리 지원.
+- **통합 집계**(`history.ts` 신규): 순수 `mergeHistory(tutor, lesson)` — 종류 태깅 후 started_at 내림차순 병합.
+- **대화 기록 UI**: 레슨·튜터 세션을 **시간순 통합 목록**(종류 배지 레슨/AI 튜터), 상세는 `?kind=lesson|tutor`로
+  저장소 분기(타인 id는 RLS 0행 → null, 튜터와 동일 IDOR 방어). 교정 없는 세션엔 저장 힌트 미노출(리뷰 HIGH).
+- **레슨 교정 저장**: `ConversationStep` 선택적 props(`onSaveCorrection`/`isSaved`, 미주입 시 회귀 0) +
+  `lesson/[id]`에 `useSaveExpression` 연결(튜터·히스토리 공용 훅, 저장소는 출처 무관).
+- **검증**: vitest **419**(400→+19, 커버리지 95.43/84.81/97.89/97.64), E2E tutor 15/15·mock 33/33 회귀.
+  ADR-0011 부록. 근거: docs/plans/p2-w5b-lesson-history.md
+- 이월: 레슨 완료 점수(user_progress) 카드 노출·레슨 세션 발화시간/턴수 비정규화는 Phase 3, W6 주간 리포트는
+  `listSessions()` 통합 집계 재사용
+
+## 2026-06-13 (세션 8) — Phase 2 W5 대화 히스토리 + 표현 저장 (보안 민감 ted-run, 커밋 `40868af`)
+
+전략: **히스토리는 기존 데이터 재사용(스키마 변경 0)**, **표현 저장만 신규 테이블 1개**(ADR-0011).
+
+- **히스토리(튜터)**: `tutor-repo`에 `listSessions`/`getSession`/`getSessionTurns` 읽기 메서드만 추가 —
+  기존 본인 select RLS 재사용(신규 RPC·스키마 0). 타인 id(IDOR)는 RLS가 0행 반환.
+- **표현 저장**(`saved_expressions` 신규 테이블, 보안 민감): 사용자 소유 노트라 **delete 허용**(W2 불변
+  로그와 의도적 차이, 파밍 표면 0), **update 부재**(교정 스냅샷 불변), insert 컬럼 화이트리스트(`id`·
+  `created_at` 서버 default 위조 차단), 길이 CHECK + `unique(user_id, original, suggested)`로 dedup·abuse 방어.
+- **타입·저장소**: `SavedExpression` zod(`Correction` 재사용·`z.infer`), Mock/Supabase `saved-repo`(23505 idempotent·
+  delete), `useSaveExpression` 훅(낙관적+실패 롤백). UI: 프로필 진입 카드 2개, history 목록·상세(턴 재생),
+  saved 복습 목록(삭제), 교정 칩 길게 눌러 저장. 신규 화면은 TanStack Query(effect 동기 setState 회피).
+- **검증**: vitest **400**(369→+31, 커버리지 95.31/86.04/97.71), E2E tutor 15/15, verify-rls **64/64**(52→+12). ADR-0011
+
 ## 2026-06-13 (세션 7) — Phase 2 W4 발음 피드백: 정직한 최소 범위 (일반 ted-run)
 
 전략: **스파이크로 먼저 진실을 측정** — "발음 점수"를 만들기 전에 OpenAI 단독으로 그게 가능한지
