@@ -2,7 +2,7 @@
 
 > Last updated: 2026-06-13 (KST) · 세션 9
 > Branch: `main` (origin: github.com/withwooyong/ted_speak, private)
-> Latest commit: `464557e` - W5b 레슨 히스토리(레슨 읽기 확장·교정 저장) · 직전 커밋 `40868af`(W5) · 직전 푸시 `59cfb74`(W2)
+> Latest commit: `73bfbab` - 세션 9 인수인계 갱신 · 직전 `464557e`(W5b) · **origin/main 동기화 완료**(73bfbab 푸시됨)
 
 ## Current Status
 
@@ -111,4 +111,4 @@ vitest **419**(400→+19), 커버리지 95.43/84.81/97.89/97.64(게이트 80), E
 - **발음 아키텍처(W4)**: 순수 코어(`packages/shared/src/pronunciation.ts`, `PronunciationAssessor` seam)+STT(`transcribeDetailed`)+어댑터+UI(DrillStep 라벨 reframe·clarity 조언). Azure 음소평가는 seam에 드롭인+`pronunciation_attempts` 테이블 추가 지점(ADR-0010)
 - **제약·선호**: 커밋 한글, **푸시는 명시 요청 시에만**, StyleSheet+토큰만(인라인 hex 금지), zod z.infer 단일 출처, 새 컬럼은 grant 화이트리스트 검토, 스키마 변경은 보안 민감 ted-run. **품질 우선 — 가짜 점수/지표 출시 안 함(ADR-0010 선례)**. 신규 화면 비동기 로드는 TanStack Query 패턴(수동 fetch-in-effect는 lint 차단). **Expo 타입드 라우트**: 새 라우트 추가 시 `.expo/types/router.d.ts` stale → typecheck 실패, expo web 한 번 띄워 번들(curl)하면 typegen 재생성
 - **테스트 인프라**: vitest 419개·커버리지 95.43/84.81/97.89/97.64%(게이트 80). 신규 순수 모듈은 `packages/**/src/**` 글롭으로 자동 포함(app lib는 vitest.config.ts coverage.include에 개별 등록 — history.ts 등록됨). `@ted-speak/shared` alias 제거 금지(`@ted-speak/content`·`@/`는 vitest alias 없음 → 테스트 대상 lib는 그 둘을 런타임 import 금지, 타입 only는 가능)
-- **미커밋 작업**: 없음 — 세션 9 W5b 커밋 완료(`464557e`). origin/main은 `59cfb74`(W2)에 머묾 → 푸시 시 W3·W4·W5·W5b 함께 반영
+- **미커밋 작업**: 없음 — 세션 9 W5b 커밋(`464557e`) + 인수인계(`73bfbab`) 모두 **origin/main에 푸시 완료**
