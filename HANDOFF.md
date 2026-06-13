@@ -2,7 +2,7 @@
 
 > Last updated: 2026-06-13 (KST) · 세션 6
 > Branch: `main` (origin: github.com/withwooyong/ted_speak, private)
-> Latest commit: 세션 6 W3 롤플레이 **커밋 대기**(푸시 미요청) · 직전 푸시 `59cfb74`(W2)
+> Latest commit: `9b2c922` - W3 롤플레이 (커밋 완료, **푸시 미요청**) · 직전 푸시 `59cfb74`(W2)
 
 ## Current Status
 
@@ -87,4 +87,4 @@ vitest 353·E2E tutor 10/10(프리토킹 6 + 롤플레이 4).
 - **튜터 아키텍처(W2+W3)**: 순수 코어(`tutor-core.ts`, objectives 추적 포함)+저장소(`tutor-repo.ts`)+전송 seam(`tutor-transport.ts`, Mock/Roleplay/Realtime이월)+팩토리(`tutor.ts`)+UI(`(tabs)/tutor.tsx`). 롤플레이는 같은 seam·`tutor_sessions` 재사용(scenario id를 topic에). 라이브 전송만 교체하면 됨. 완료는 `complete_tutor_session` RPC 필수. 롤플레이 콘텐츠는 `content/roleplay/*.json`(zod, validate:content 가드)
 - **제약·선호**: 커밋 한글, **푸시는 명시 요청 시에만**, StyleSheet+토큰만(인라인 hex 금지), zod z.infer 단일 출처, 새 컬럼은 grant 화이트리스트 검토, 스키마 변경은 보안 민감 ted-run
 - **테스트 인프라**: vitest 353개·커버리지 94.7/87.3/97.2%(게이트 80). istanbul 텍스트 리포터는 100% 커버 파일 생략(skipFull). 신규 순수 모듈은 vitest.config.ts coverage.include에 등록 필요. `@ted-speak/shared` alias 제거 금지
-- **미커밋 작업**: 세션 6 W3 롤플레이 **커밋 대기**(푸시 미요청). 작업 트리에 변경 8파일 + 신규 4건(content/roleplay/, docs/adr/ADR-0009, docs/plans/p2-w3-roleplay) 스테이징 대기
+- **미커밋 작업**: 없음 — W3 롤플레이 커밋 완료(`9b2c922`, **푸시 미요청**). 이 HANDOFF 해시 부기 1줄만 미커밋(다음 세션 /handoff 시 흡수)
