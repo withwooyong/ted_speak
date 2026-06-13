@@ -1,5 +1,6 @@
 import { type AiClientConfig, resolveConfig } from './config';
 import { AiError, throwIfNotOk } from './error';
+import { reliableFetch, type RequestOptions } from './reliability';
 
 const TTS_MODEL = 'tts-1';
 const TTS_VOICE = 'alloy';
@@ -13,9 +14,18 @@ function buildRequest(text: string, apiKey: string): RequestInit {
 }
 
 /** 텍스트 → 음성 (전체 버퍼). 레슨 고정 문장 사전 캐시 등 비스트리밍 용도 */
-export async function synthesize(text: string, cfg: AiClientConfig): Promise<ArrayBuffer> {
+export async function synthesize(
+  text: string,
+  cfg: AiClientConfig,
+  opts: RequestOptions = {},
+): Promise<ArrayBuffer> {
   const { apiKey, baseUrl, fetchImpl } = resolveConfig(cfg);
-  const res = await fetchImpl(`${baseUrl}/v1/audio/speech`, buildRequest(text, apiKey));
+  const res = await reliableFetch(
+    fetchImpl,
+    `${baseUrl}/v1/audio/speech`,
+    buildRequest(text, apiKey),
+    opts,
+  );
   await throwIfNotOk(res, 'TTS');
   return res.arrayBuffer();
 }
@@ -34,9 +44,17 @@ export async function synthesizeStream(
   text: string,
   cfg: AiClientConfig,
   handlers: StreamHandlers,
+  opts: RequestOptions = {},
 ): Promise<void> {
   const { apiKey, baseUrl, fetchImpl } = resolveConfig(cfg);
-  const res = await fetchImpl(`${baseUrl}/v1/audio/speech`, buildRequest(text, apiKey));
+  // reliableFetch는 헤더 응답까지만 재시도한다 — 첫 바이트(스트림 읽기) 이후 에러는
+  // 재생 중 중단이라 재시도 대상이 아니다(아래 try에서 AiError로 래핑).
+  const res = await reliableFetch(
+    fetchImpl,
+    `${baseUrl}/v1/audio/speech`,
+    buildRequest(text, apiKey),
+    opts,
+  );
   await throwIfNotOk(res, 'TTS');
   if (!res.body) throw new AiError('TTS 응답에 body 스트림 없음');
 
@@ -52,6 +70,9 @@ export async function synthesizeStream(
       }
       if (value) handlers.onChunk?.(value);
     }
+  } catch (err) {
+    // 첫 바이트 후 스트림 중단 — 재시도 없이 AiError로 래핑
+    throw new AiError(`TTS 스트림 중단: ${(err as Error).message}`);
   } finally {
     reader.releaseLock();
   }

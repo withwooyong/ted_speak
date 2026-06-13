@@ -24,5 +24,5 @@ const styles = StyleSheet.create({
     padding: 16,
     marginTop: 16,
   },
-  bannerText: { color: '#8A5B00', fontSize: 13, fontWeight: '600', lineHeight: 20 },
+  bannerText: { color: colors.goldText, fontSize: 13, fontWeight: '600', lineHeight: 20 },
 });

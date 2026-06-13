@@ -10,3 +10,5 @@ build/
 prototype/shots/
 packages/ai/spike/out/
 coverage/
+e2e/screenshots/
+e2e/results.json

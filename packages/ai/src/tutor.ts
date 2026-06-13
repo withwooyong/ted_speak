@@ -3,6 +3,7 @@ import { TurnFeedbackSchema, type TurnFeedback } from '@ted-speak/shared';
 import { type AiClientConfig, resolveConfig } from './config';
 import { AiError, throwIfNotOk } from './error';
 import { buildTutorSystemPrompt, type TutorPromptContext } from './prompts';
+import { reliableFetch, type RequestOptions } from './reliability';
 
 /** 비용 관리: 대화 히스토리 슬라이딩 윈도우 (PLAN §7.3) */
 const HISTORY_WINDOW = 6;
@@ -24,24 +25,30 @@ export async function getTurnFeedback(
   transcript: string,
   opts: TutorOptions,
   cfg: AiClientConfig,
+  reqOpts: RequestOptions = {},
 ): Promise<TurnFeedback> {
   const { apiKey, baseUrl, fetchImpl } = resolveConfig(cfg);
   const history = (opts.history ?? []).slice(-HISTORY_WINDOW);
 
-  const res = await fetchImpl(`${baseUrl}/v1/chat/completions`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: opts.model ?? 'gpt-4o',
-      response_format: { type: 'json_object' },
-      max_tokens: MAX_TOKENS,
-      messages: [
-        { role: 'system', content: buildTutorSystemPrompt(opts) },
-        ...history,
-        { role: 'user', content: transcript },
-      ],
-    }),
-  });
+  const res = await reliableFetch(
+    fetchImpl,
+    `${baseUrl}/v1/chat/completions`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: opts.model ?? 'gpt-4o',
+        response_format: { type: 'json_object' },
+        max_tokens: MAX_TOKENS,
+        messages: [
+          { role: 'system', content: buildTutorSystemPrompt(opts) },
+          ...history,
+          { role: 'user', content: transcript },
+        ],
+      }),
+    },
+    reqOpts,
+  );
   await throwIfNotOk(res, 'LLM');
 
   const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };

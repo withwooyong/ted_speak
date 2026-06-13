@@ -13,7 +13,18 @@ export default defineConfig({
     coverage: {
       provider: 'istanbul',
       // 앱은 순수 로직 모듈만 커버리지 대상 (RN 의존 화면·클라이언트는 E2E로 검증)
-      include: ['packages/ai/src/**', 'packages/shared/src/**', 'apps/mobile/src/lib/auth-config.ts', 'apps/mobile/src/stores/auth-core.ts'],
+      include: [
+        'packages/ai/src/**',
+        'packages/shared/src/**',
+        'apps/mobile/src/lib/auth-config.ts',
+        'apps/mobile/src/lib/recorder-core.ts',
+        'apps/mobile/src/lib/tts-cache.ts',
+        'apps/mobile/src/lib/lesson-core.ts',
+        'apps/mobile/src/lib/progress-repo.ts',
+        'apps/mobile/src/lib/login-core.ts',
+        'apps/mobile/src/stores/auth-core.ts',
+        'apps/mobile/src/stores/user-core.ts',
+      ],
       exclude: ['packages/shared/src/types.ts'], // 타입 선언만 — 런타임 코드 없음
       thresholds: { lines: 80, functions: 80, branches: 80 },
     },

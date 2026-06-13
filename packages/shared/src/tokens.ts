@@ -18,6 +18,14 @@ export const colors = {
   mintSoft: '#E2F6EF',
   gold: '#FFB829',
   goldSoft: '#FFF3D9',
+  /** goldSoft 배경 위 본문 텍스트 (교정 칩·배너) */
+  goldText: '#8A5B00',
+  /** 강조 골드 수치 텍스트 (XP 등) */
+  goldDeep: '#D89000',
+  /** 어두운 카드 위 ted 계열 라벨 틴트 */
+  tedTint: '#FFB48A',
+  /** 어두운 카드 위 보조 텍스트 */
+  onDark65: 'rgba(255,255,255,0.65)',
 } as const;
 
 export const radius = {

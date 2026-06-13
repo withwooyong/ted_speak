@@ -14,12 +14,14 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "validate:content": "vitest run packages/shared/test/content-schema.test.ts",
+    "generate:seed": "tsx scripts/generate-seed.mts",
     "lint": "npm run lint -w talkted-mobile",
     "ci": "npm run typecheck && npm run lint && npm run test:coverage"
   },
   "devDependencies": {
     "@vitest/coverage-istanbul": "^4.1.8",
     "@vitest/coverage-v8": "^4.1.8",
+    "playwright": "^1.60.0",
     "tsx": "^4.22.4",
     "vitest": "^4.1.8"
   }

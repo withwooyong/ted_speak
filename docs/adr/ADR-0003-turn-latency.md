@@ -35,3 +35,18 @@
 - `packages/shared/src/drill-score.ts`가 Drill 채점 단일 구현.
 - 모바일에서 스트리밍 재생(expo-audio buffer queue) 가능 여부는 Phase 1에서 검증.
   불가 시 폴백: 문장 단위 분할 합성(첫 문장 먼저 재생).
+
+## 갱신 (2026-06-12, P1 U1·U6)
+
+1. **신뢰성 계층 구현** — `packages/ai/src/reliability.ts`의 `reliableFetch()`가 전 AI 호출의
+   표준 경로. 시도당 타임아웃 15s(AbortController) + 지수 백오프 재시도 2회(500→1000ms).
+   재시도 대상: 네트워크 에러·타임아웃·5xx·429. 4xx(429 제외)는 즉시 반환(상위 `throwIfNotOk`).
+   호출자 `signal` abort는 재시도 없이 즉시 중단(레슨 이탈 시 취소). STT는 FormData 1회 소비
+   문제로 시도마다 init을 재생성(팩토리 주입). **스트리밍은 첫 바이트 수신 전까지만 재시도**
+   (이중 재생 방지) — 이후 스트림 에러는 AiError로 즉시 실패.
+2. **모바일 Ted 발화 재생은 문장 단위 분할 합성으로 확정** — RN(Hermes)에는 MediaSource가
+   없어 `synthesizeStream()` 청크의 점진 재생이 불가하다. `apps/mobile/src/hooks/use-tts.ts`가
+   reply를 문장으로 분할해 첫 문장을 합성·재생하고 다음 문장을 재생 중 백그라운드 합성한다
+   (위 폴백 경로 채택). `synthesizeStream` 직접 재생은 네이티브 buffer queue 모듈 도입 시 재평가.
+3. 레슨 고정 문장(keyPhrases·drills)은 `apps/mobile/src/lib/tts-cache.ts`로 사전 합성·파일
+   캐시(expo-file-system) — 오프라인 재진입 재생 + 비용 절감(PLAN §7.3).
