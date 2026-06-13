@@ -1,6 +1,7 @@
 /**
- * 대화 기록 상세 (P2 W5) — 세션 1건의 턴을 텍스트로 재생한다.
- * 데이터는 tutor-repo.getSessionTurns()(기존 RLS select 재사용). 교정 칩은 길게 눌러 저장 가능.
+ * 대화 기록 상세 (P2 W5 + W5b) — 세션 1건의 턴을 텍스트로 재생한다.
+ * kind(lesson|tutor)에 따라 해당 저장소에서 읽는다(둘 다 기존 RLS select 재사용, 신규 RPC 없음).
+ * 교정 칩은 길게 눌러 저장 가능(레슨·튜터 공용).
  */
 import { useQuery } from '@tanstack/react-query';
 import { colors, radius, type Correction } from '@ted-speak/shared';
@@ -8,28 +9,43 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useSaveExpression } from '@/hooks/use-save-expression';
+import { getProgressRepo } from '@/lib/progress';
 import { getTutorRepo } from '@/lib/tutor';
-import type { TutorSessionSummary, TutorTurnRow } from '@/lib/tutor-repo';
 
-import { sessionTitle } from './index';
+import { lessonTitle, sessionTitle } from './index';
+
+/** order/role/transcript/corrections 동형 — 레슨·튜터 턴을 공통 렌더한다 */
+interface HistoryTurn {
+  order: number;
+  role: 'user' | 'assistant';
+  transcript: string;
+  corrections: Correction[];
+}
 
 export default function HistoryDetail() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, kind } = useLocalSearchParams<{ id: string; kind?: string }>();
   const { saveCorrection, isSaved } = useSaveExpression();
+  const isLesson = kind === 'lesson';
 
   // 데이터 로드는 TanStack Query로 (effect 내 동기 setState 회피)
   const { data, isError } = useQuery({
-    queryKey: ['tutor-session', id],
-    queryFn: async (): Promise<{ turns: TutorTurnRow[]; meta: TutorSessionSummary | undefined }> => {
+    queryKey: ['history-session', kind, id],
+    queryFn: async (): Promise<{ turns: HistoryTurn[]; title: string }> => {
+      if (!id) return { turns: [], title: '대화' };
+      if (isLesson) {
+        const repo = getProgressRepo();
+        if (!repo) return { turns: [], title: '대화' };
+        const [turns, session] = await Promise.all([repo.getSessionTurns(id), repo.getSession(id)]);
+        return { turns, title: session ? lessonTitle(session.lessonId) : '레슨' };
+      }
       const repo = getTutorRepo();
-      if (!repo || !id) return { turns: [], meta: undefined };
+      if (!repo) return { turns: [], title: '대화' };
       const [turns, session] = await Promise.all([repo.getSessionTurns(id), repo.getSession(id)]);
-      return { turns, meta: session ?? undefined };
+      return { turns, title: session ? sessionTitle(session.topic) : '대화' };
     },
   });
   const turns = data?.turns;
-  const meta = data?.meta;
 
   return (
     <View style={styles.container}>
@@ -37,7 +53,7 @@ export default function HistoryDetail() {
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <Text style={styles.back}>‹ 대화 기록</Text>
         </Pressable>
-        <Text style={styles.title}>{meta ? sessionTitle(meta.topic) : '대화'}</Text>
+        <Text style={styles.title}>{data?.title ?? '대화'}</Text>
       </View>
 
       {turns === undefined && !isError && <ActivityIndicator color={colors.ted} style={styles.loading} />}
@@ -48,7 +64,9 @@ export default function HistoryDetail() {
 
       {turns !== undefined && turns.length > 0 && (
         <ScrollView contentContainerStyle={styles.list}>
-          <Text style={styles.hint}>교정 칩을 길게 누르면 복습 목록에 저장돼요.</Text>
+          {turns.some((t) => t.corrections.length > 0) && (
+            <Text style={styles.hint}>교정 칩을 길게 누르면 복습 목록에 저장돼요.</Text>
+          )}
           {turns.map((t) => (
             <View key={t.order} style={t.role === 'assistant' ? styles.tedBubble : styles.userBubble}>
               <Text style={t.role === 'assistant' ? styles.tedLabel : styles.userLabel}>

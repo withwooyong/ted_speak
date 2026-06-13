@@ -21,6 +21,7 @@ import { CompleteStep } from '@/components/lesson/CompleteStep';
 import { DrillStep, type DrillResultView } from '@/components/lesson/DrillStep';
 import { LearnStep } from '@/components/lesson/LearnStep';
 import { useRecorder } from '@/hooks/use-recorder';
+import { useSaveExpression } from '@/hooks/use-save-expression';
 import { useTts } from '@/hooks/use-tts';
 import { getAiConfig, transcribeUri, transcribeUriDetailed } from '@/lib/ai';
 import {
@@ -99,6 +100,8 @@ function LessonRunner({ lesson }: { lesson: Lesson }) {
 
   const recorder = useRecorder();
   const tts = useTts(aiConfig);
+  // 대화 교정 길게 눌러 복습 목록에 저장 (P2 W5b — 튜터·히스토리와 동일 훅)
+  const { saveCorrection, isSaved } = useSaveExpression();
   const applyReward = useUserStore((s) => s.applyReward);
   const level = useUserStore((s) => s.level) ?? 'A2';
   const streak = useUserStore((s) => s.streak);
@@ -583,6 +586,8 @@ function LessonRunner({ lesson }: { lesson: Lesson }) {
             onToggleRecord={() => void handleConvRecord()}
             onSubmitText={handleConvText}
             onRetry={handleConvRetry}
+            onSaveCorrection={(c, context) => void saveCorrection(c, context)}
+            isSaved={isSaved}
           />
         )}
 

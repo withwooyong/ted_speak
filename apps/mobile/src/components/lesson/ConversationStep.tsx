@@ -33,6 +33,12 @@ export interface ConversationStepProps {
   onToggleRecord: () => void;
   onSubmitText: (text: string) => void;
   onRetry: () => void;
+  /**
+   * 교정 칩 길게 누르기로 복습 목록에 저장 (P2 W5b). 주어지면 칩이 Pressable이 되고
+   * 저장된 칩에 ✓를 표시한다. 미주입 시 기존 표시(저장 비활성) — 회귀 0.
+   */
+  onSaveCorrection?: (c: Correction, context?: string) => void;
+  isSaved?: (c: Correction) => boolean;
 }
 
 export function ConversationStep(props: ConversationStepProps) {
@@ -47,6 +53,8 @@ export function ConversationStep(props: ConversationStepProps) {
     onToggleRecord,
     onSubmitText,
     onRetry,
+    onSaveCorrection,
+    isSaved,
   } = props;
   const [text, setText] = useState('');
   const scrollRef = useRef<ScrollView>(null);
@@ -85,15 +93,30 @@ export function ConversationStep(props: ConversationStepProps) {
             </View>
             {b.hint && <Text style={styles.hint}>💡 {b.hint}</Text>}
             {b.encouragement ? <Text style={styles.encourage}>{b.encouragement}</Text> : null}
-            {b.corrections?.map((c, j) => (
-              <View key={j} style={styles.correction}>
-                <Text style={styles.correctionText}>
-                  <Text style={styles.correctionStrike}>{c.original}</Text>
-                  {'  →  '}
-                  <Text style={styles.correctionTo}>{c.suggested}</Text>
-                </Text>
-              </View>
-            ))}
+            {b.corrections?.map((c, j) => {
+              const saved = isSaved?.(c) ?? false;
+              const chip = (
+                <View style={styles.correction}>
+                  <Text style={styles.correctionText}>
+                    <Text style={styles.correctionStrike}>{c.original}</Text>
+                    {'  →  '}
+                    <Text style={styles.correctionTo}>{c.suggested}</Text>
+                    {saved ? '  ✓' : ''}
+                  </Text>
+                </View>
+              );
+              // 저장 핸들러가 주어지면 길게 눌러 복습 목록에 저장(P2 W5b). 없으면 정적 표시.
+              return onSaveCorrection ? (
+                <Pressable
+                  key={j}
+                  onLongPress={() => onSaveCorrection(c, b.text)}
+                  delayLongPress={300}>
+                  {chip}
+                </Pressable>
+              ) : (
+                <View key={j}>{chip}</View>
+              );
+            })}
           </View>
         ))}
         {thinking && (

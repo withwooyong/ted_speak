@@ -12,6 +12,8 @@ import {
   createMockProgressRepo,
   createSupabaseProgressRepo,
   type KeyValueStorage,
+  type LessonSessionSummary,
+  type LessonTurnRow,
   type ProgressRepo,
   type SessionRow,
 } from '../src/lib/progress-repo';
@@ -649,5 +651,236 @@ describe('createSupabaseProgressRepo', () => {
     consoleSpy.mockRestore();
     consoleInfoSpy.mockRestore();
     consoleDebugSpy.mockRestore();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 히스토리 읽기 (W5b) — 레슨 세션을 대화 기록에 노출하기 위한 읽기 경로
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('createMockProgressRepo — 히스토리 읽기 (W5b)', () => {
+  let storage: KeyValueStorage;
+  const LESSON_A = 'lesson-a';
+  const LESSON_B = 'lesson-b';
+
+  beforeEach(() => {
+    storage = makeStorage();
+  });
+
+  it('listSessions는 활성(in_progress) 세션을 startedAt과 함께 반환한다', async () => {
+    const repo = createMockProgressRepo(storage, { now: () => new Date('2026-06-13T01:00:00Z') });
+    const s = await repo.getOrCreateSession(LESSON_A);
+
+    const list = await repo.listSessions();
+    expect(list).toHaveLength(1);
+    expect(list[0].id).toBe(s.id);
+    expect(list[0].lessonId).toBe(LESSON_A);
+    expect(list[0].status).toBe('in_progress');
+    expect(list[0].completedAt).toBeNull();
+    // startedAt은 파싱 가능한 ISO 문자열이어야 한다
+    expect(Number.isNaN(new Date(list[0].startedAt).getTime())).toBe(false);
+  });
+
+  it('completeSession 후에도 listSessions에 완료 세션이 남는다 (히스토리 보존)', async () => {
+    const repo = createMockProgressRepo(storage, { now: () => new Date('2026-06-13T01:00:00Z') });
+    const s = await repo.getOrCreateSession(LESSON_A);
+    await repo.completeSession(s.id, { feedbackSummary: { strengths: ['good'] } });
+
+    const list = await repo.listSessions();
+    expect(list).toHaveLength(1);
+    expect(list[0].id).toBe(s.id);
+    expect(list[0].status).toBe('completed');
+    expect(list[0].completedAt).not.toBeNull();
+    expect(list[0].summary).toMatchObject({ strengths: ['good'] });
+  });
+
+  it('listSessions는 startedAt 내림차순(최신 먼저)으로 정렬한다', async () => {
+    // LESSON_A를 먼저(과거), LESSON_B를 나중(미래)에 시작·완료
+    const repoEarly = createMockProgressRepo(storage, { now: () => new Date('2026-06-13T01:00:00Z') });
+    const a = await repoEarly.getOrCreateSession(LESSON_A);
+    await repoEarly.completeSession(a.id, { feedbackSummary: null });
+
+    const repoLate = createMockProgressRepo(storage, { now: () => new Date('2026-06-13T05:00:00Z') });
+    const b = await repoLate.getOrCreateSession(LESSON_B);
+
+    const list = await repoLate.listSessions();
+    expect(list.map((x) => x.id)).toEqual([b.id, a.id]); // 최신(b) 먼저
+  });
+
+  it('getSession은 완료 세션 메타를 반환하고, 없는 id는 null이다', async () => {
+    const repo = createMockProgressRepo(storage, { now: () => new Date('2026-06-13T01:00:00Z') });
+    const s = await repo.getOrCreateSession(LESSON_A);
+    await repo.completeSession(s.id, { feedbackSummary: { strengths: [] } });
+
+    const found = await repo.getSession(s.id);
+    expect(found?.id).toBe(s.id);
+    expect(found?.status).toBe('completed');
+
+    expect(await repo.getSession('no-such-id')).toBeNull();
+  });
+
+  it('getSessionTurns는 완료 후에도 턴을 order 오름차순·Correction[] 형태로 반환한다', async () => {
+    const repo = createMockProgressRepo(storage);
+    const s = await repo.getOrCreateSession(LESSON_A);
+    await repo.recordTurn(s.id, { order: 1, role: 'user', transcript: 'I goed' });
+    await repo.recordTurn(s.id, {
+      order: 2,
+      role: 'assistant',
+      transcript: 'I went',
+      corrections: [
+        { original: 'goed', suggested: 'went', type: 'grammar' },
+        { bogus: true }, // 형태가 다른 항목은 버린다(신뢰 경계)
+      ],
+    });
+    await repo.completeSession(s.id, { feedbackSummary: null });
+
+    const turns: LessonTurnRow[] = await repo.getSessionTurns(s.id);
+    expect(turns.map((t) => t.order)).toEqual([1, 2]);
+    expect(turns[1].corrections).toEqual([
+      { original: 'goed', suggested: 'went', type: 'grammar' },
+    ]);
+  });
+
+  it('getSessionTurns는 없는 세션이면 빈 배열이다', async () => {
+    const repo = createMockProgressRepo(storage);
+    expect(await repo.getSessionTurns('no-such-id')).toEqual([]);
+  });
+
+  it('히스토리 읽기는 namespace로 격리된다 (공유 단말 PII)', async () => {
+    const repoA = createMockProgressRepo(storage, { namespace: 'user-a' });
+    const repoB = createMockProgressRepo(storage, { namespace: 'user-b' });
+    const sA = await repoA.getOrCreateSession(LESSON_A);
+    await repoA.recordTurn(sA.id, { order: 0, role: 'user', transcript: 'a-secret' });
+
+    expect(await repoB.listSessions()).toEqual([]);
+    expect(await repoB.getSession(sA.id)).toBeNull();
+    expect(await repoB.getSessionTurns(sA.id)).toEqual([]);
+    expect(await repoA.listSessions()).toHaveLength(1);
+  });
+});
+
+describe('createSupabaseProgressRepo — 히스토리 읽기 (W5b)', () => {
+  const USER_ID = 'user-uuid-0001';
+  const SESSION_ID = 'session-uuid-0001';
+
+  let fakeClient: FakeClient;
+  let repo: ProgressRepo;
+
+  beforeEach(() => {
+    fakeClient = makeFakeSupabase();
+    repo = createSupabaseProgressRepo(
+      fakeClient as unknown as Parameters<typeof createSupabaseProgressRepo>[0],
+      USER_ID,
+    );
+  });
+
+  afterEach(() => {
+    fakeClient.reset();
+  });
+
+  it('listSessions는 lesson_sessions를 started_at 내림차순으로 select하고 매핑한다', async () => {
+    fakeClient.setPreset('lesson_sessions.select', {
+      data: [
+        {
+          id: SESSION_ID,
+          lesson_id: 'lesson-001',
+          status: 'completed',
+          started_at: '2026-06-13T01:00:00Z',
+          completed_at: '2026-06-13T01:05:00Z',
+          feedback_summary: { strengths: ['x'] },
+        },
+      ],
+      error: null,
+    });
+
+    const list: LessonSessionSummary[] = await repo.listSessions();
+
+    const calls = fakeClient.getCalls();
+    const selectCall = calls.find((c) => c.table === 'lesson_sessions' && c.operation === 'select');
+    expect(selectCall).toBeDefined();
+    const orderCall = calls.find(
+      (c) => c.operation === 'order' && c.args[0] === 'started_at' && (c.args[1] as { ascending?: boolean })?.ascending === false,
+    );
+    expect(orderCall).toBeDefined();
+
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({
+      id: SESSION_ID,
+      lessonId: 'lesson-001',
+      status: 'completed',
+      startedAt: '2026-06-13T01:00:00Z',
+      completedAt: '2026-06-13T01:05:00Z',
+    });
+  });
+
+  it('listSessions: error 응답 시 throw한다', async () => {
+    fakeClient.setPreset('lesson_sessions.select', { data: null, error: { message: 'rls' } });
+    await expect(repo.listSessions()).rejects.toThrow();
+  });
+
+  it('getSession은 id로 eq 조회하고, 0행이면 null이다', async () => {
+    fakeClient.setPreset('lesson_sessions.select', { data: [], error: null });
+    const found = await repo.getSession(SESSION_ID);
+    expect(found).toBeNull();
+
+    const calls = fakeClient.getCalls();
+    const eqCall = calls.find((c) => c.operation === 'eq' && c.args[0] === 'id' && c.args[1] === SESSION_ID);
+    expect(eqCall).toBeDefined();
+  });
+
+  it('getSession은 행이 있으면 요약으로 매핑한다', async () => {
+    fakeClient.setPreset('lesson_sessions.select', {
+      data: [
+        {
+          id: SESSION_ID,
+          lesson_id: 'lesson-002',
+          status: 'in_progress',
+          started_at: '2026-06-13T02:00:00Z',
+          completed_at: null,
+          feedback_summary: null,
+        },
+      ],
+      error: null,
+    });
+    const found = await repo.getSession(SESSION_ID);
+    expect(found).toMatchObject({ id: SESSION_ID, lessonId: 'lesson-002', status: 'in_progress', completedAt: null });
+  });
+
+  it('getSessionTurns는 conversation_turns를 session_id로 select·order 정렬하고 corrections를 방어 변환한다', async () => {
+    fakeClient.setPreset('conversation_turns.select', {
+      data: [
+        { order: 0, role: 'assistant', transcript: 'opening', corrections: [] },
+        {
+          order: 1,
+          role: 'user',
+          transcript: 'I goed',
+          corrections: [
+            { original: 'goed', suggested: 'went', type: 'grammar' },
+            'not-an-object',
+          ],
+        },
+      ],
+      error: null,
+    });
+
+    const turns = await repo.getSessionTurns(SESSION_ID);
+
+    const calls = fakeClient.getCalls();
+    const eqCall = calls.find(
+      (c) => c.operation === 'eq' && c.args[0] === 'session_id' && c.args[1] === SESSION_ID,
+    );
+    expect(eqCall).toBeDefined();
+    const orderCall = calls.find((c) => c.operation === 'order' && c.args[0] === 'order');
+    expect(orderCall).toBeDefined();
+
+    expect(turns.map((t) => t.order)).toEqual([0, 1]);
+    expect(turns[1].corrections).toEqual([
+      { original: 'goed', suggested: 'went', type: 'grammar' },
+    ]);
+  });
+
+  it('getSessionTurns: error 응답 시 throw한다', async () => {
+    fakeClient.setPreset('conversation_turns.select', { data: null, error: { message: 'rls' } });
+    await expect(repo.getSessionTurns(SESSION_ID)).rejects.toThrow();
   });
 });

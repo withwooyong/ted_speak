@@ -9,7 +9,7 @@
  *  - transcript·이메일 등 PII를 console에 출력하지 않는다 (에러 로그 포함).
  *  - conversation_turns는 불변 로그 — insert만 한다 (update/delete 없음).
  */
-import type { SessionStatus } from '@ted-speak/shared';
+import type { Correction, SessionStatus } from '@ted-speak/shared';
 
 /**
  * mock 세션용 로컬 고유 id. 실제 세션 id는 서버가 gen_random_uuid()로 발급하므로
@@ -17,6 +17,18 @@ import type { SessionStatus } from '@ted-speak/shared';
  */
 function localId(): string {
   return `mock-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/** corrections jsonb를 Correction[]로 방어적 변환 (신뢰 경계 — 알 수 없는 형태는 버린다) */
+function toCorrections(raw: unknown): Correction[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (c): c is Correction =>
+      typeof c === 'object' &&
+      c !== null &&
+      typeof (c as Correction).original === 'string' &&
+      typeof (c as Correction).suggested === 'string',
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -54,6 +66,30 @@ export interface RecordProgressInput {
   score: number;
 }
 
+/**
+ * 레슨 세션 히스토리 1건 (W5b) — 대화 기록 목록·상세용으로 lesson_sessions 행을 평탄화.
+ * 튜터 TutorSessionSummary와 동형이되 레슨 고유 필드(lessonId·completedAt)를 가진다.
+ */
+export interface LessonSessionSummary {
+  id: string;
+  lessonId: string;
+  status: SessionStatus;
+  /** ISO 8601 시작 시각 */
+  startedAt: string;
+  /** ISO 8601 완료 시각 — 미완료면 null */
+  completedAt: string | null;
+  /** feedback_summary(강점·개선점 등) — 스키마 자유, UI가 방어적으로 읽음 */
+  summary: unknown;
+}
+
+/** 히스토리 상세 턴 1건 (W5b) — 튜터 TutorTurnRow와 동형(상세 화면 공유) */
+export interface LessonTurnRow {
+  order: number;
+  role: 'user' | 'assistant';
+  transcript: string;
+  corrections: Correction[];
+}
+
 export interface ProgressRepo {
   getOrCreateSession: (lessonId: string) => Promise<SessionRow>;
   saveStep: (sessionId: string, step: number, snapshot: string) => Promise<void>;
@@ -64,15 +100,37 @@ export interface ProgressRepo {
   recordProgress: (input: RecordProgressInput) => Promise<void>;
   getCompletedLessonIds: () => Promise<string[]>;
   isLessonCompletedToday: () => Promise<boolean>;
+  /** 본인 레슨 세션 목록 — 최신순(started_at desc). 대화 기록 화면용 (W5b) */
+  listSessions: () => Promise<LessonSessionSummary[]>;
+  /** 세션 1건 메타 조회 — 없으면 null. 대화 기록 상세 헤더용 (W5b) */
+  getSession: (sessionId: string) => Promise<LessonSessionSummary | null>;
+  /** 세션 1건의 턴 목록 — order 오름차순. 대화 기록 상세 재생용 (W5b) */
+  getSessionTurns: (sessionId: string) => Promise<LessonTurnRow[]>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mock Repo — KeyValueStorage 직렬화 영속, now 주입으로 날짜 결정성 확보
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * 레슨 세션 히스토리 메타 (W5b, mock 전용) — 모든 세션(in_progress·completed)을
+ * sessionId로 보관해 대화 기록을 재구성한다. 활성 세션 인덱스(sessions)와 달리
+ * 완료 후에도 삭제하지 않는다(히스토리 보존). 웹은 메모리 폴백이라 PII 영속 표면이 작다.
+ */
+interface MockSessionMeta {
+  id: string;
+  lessonId: string;
+  status: SessionStatus;
+  startedAtMs: number;
+  completedAtMs: number | null;
+  summary: unknown;
+}
+
 interface MockState {
-  /** lessonId → 현재 활성(in_progress) 세션 */
+  /** lessonId → 현재 활성(in_progress) 세션 (이어하기 인덱스) */
   sessions: Record<string, SessionRow>;
+  /** sessionId → 세션 메타 (히스토리 — 완료 후에도 보존) */
+  history: Record<string, MockSessionMeta>;
   /** sessionId → 턴 누적 */
   turns: Record<string, TurnInput[]>;
   /** lessonId → 마지막 완료 날짜 (YYYY-MM-DD, 로컬) */
@@ -91,7 +149,19 @@ function mockKey(namespace?: string): string {
 }
 
 function emptyState(): MockState {
-  return { sessions: {}, turns: {}, progress: {} };
+  return { sessions: {}, history: {}, turns: {}, progress: {} };
+}
+
+/** MockSessionMeta → 화면용 요약(히스토리) */
+function metaToSummary(m: MockSessionMeta): LessonSessionSummary {
+  return {
+    id: m.id,
+    lessonId: m.lessonId,
+    status: m.status,
+    startedAt: new Date(m.startedAtMs).toISOString(),
+    completedAt: m.completedAtMs !== null ? new Date(m.completedAtMs).toISOString() : null,
+    summary: m.summary,
+  };
 }
 
 /** 로컬 날짜 문자열 (YYYY-MM-DD). KST 경계는 서버 트리거 소관 — 클라이언트는 로컬 비교면 충분 */
@@ -137,6 +207,15 @@ export function createMockProgressRepo(
         snapshot: null,
       };
       state.sessions[lessonId] = session;
+      // 히스토리 메타도 함께 기록한다(W5b) — 완료 후에도 대화 기록에 남기기 위함.
+      state.history[session.id] = {
+        id: session.id,
+        lessonId,
+        status: 'in_progress',
+        startedAtMs: now().getTime(),
+        completedAtMs: null,
+        summary: null,
+      };
       await save(state);
       return session;
     },
@@ -168,15 +247,27 @@ export function createMockProgressRepo(
       return [...turns].sort((a, b) => a.order - b.order);
     },
 
-    async completeSession(sessionId) {
+    async completeSession(sessionId, input) {
       const state = await load();
       // 완료된 세션은 활성 목록에서 제거 — 다음 getOrCreateSession이 새 세션을 생성한다
-      for (const lessonId of Object.keys(state.sessions)) {
-        if (state.sessions[lessonId].id === sessionId) {
-          delete state.sessions[lessonId];
+      let lessonId: string | undefined;
+      for (const lid of Object.keys(state.sessions)) {
+        if (state.sessions[lid].id === sessionId) {
+          lessonId = state.sessions[lid].lessonId;
+          delete state.sessions[lid];
           break;
         }
       }
+      // 히스토리 메타를 완료로 갱신(보존) — 메타가 없으면(레거시) 최소 정보로 생성한다.
+      const existing = state.history[sessionId];
+      state.history[sessionId] = {
+        id: sessionId,
+        lessonId: existing?.lessonId ?? lessonId ?? '',
+        status: 'completed',
+        startedAtMs: existing?.startedAtMs ?? now().getTime(),
+        completedAtMs: now().getTime(),
+        summary: input.feedbackSummary,
+      };
       await save(state);
     },
 
@@ -195,6 +286,32 @@ export function createMockProgressRepo(
       const state = await load();
       const today = localDateString(now());
       return Object.values(state.progress).some((date) => date === today);
+    },
+
+    async listSessions() {
+      const state = await load();
+      return Object.values(state.history)
+        .sort((a, b) => b.startedAtMs - a.startedAtMs) // 최신순
+        .map(metaToSummary);
+    },
+
+    async getSession(sessionId) {
+      const state = await load();
+      const m = state.history[sessionId];
+      return m ? metaToSummary(m) : null;
+    },
+
+    async getSessionTurns(sessionId) {
+      const state = await load();
+      const turns = state.turns[sessionId] ?? [];
+      return [...turns]
+        .sort((a, b) => a.order - b.order)
+        .map((t) => ({
+          order: t.order,
+          role: t.role,
+          transcript: t.transcript,
+          corrections: toCorrections(t.corrections),
+        }));
     },
   };
 }
@@ -227,6 +344,21 @@ function mapSessionRow(row: Record<string, unknown>): SessionRow {
     currentStep: Number(currentStep),
     status: row.status as SessionStatus,
     snapshot: (row.snapshot as string | null) ?? null,
+  };
+}
+
+/** lesson_sessions 히스토리 조회 컬럼(목록·단건 공통) (W5b) */
+const LESSON_HISTORY_SELECT = 'id, lesson_id, status, started_at, completed_at, feedback_summary';
+
+/** supabase lesson_sessions 행 → 화면용 요약(히스토리) (W5b) */
+function rowToLessonSummary(r: Record<string, unknown>): LessonSessionSummary {
+  return {
+    id: String(r.id),
+    lessonId: String(r.lesson_id ?? ''),
+    status: (r.status as SessionStatus) ?? 'completed',
+    startedAt: String(r.started_at ?? ''),
+    completedAt: r.completed_at ? String(r.completed_at) : null,
+    summary: r.feedback_summary ?? null,
   };
 }
 
@@ -351,6 +483,45 @@ export function createSupabaseProgressRepo(
       const rows = (data as Record<string, unknown>[] | null) ?? [];
       const today = new Date().toISOString().slice(0, 10);
       return rows.some((r) => String(r.completed_at ?? '').slice(0, 10) === today);
+    },
+
+    async listSessions() {
+      // RLS가 본인 행만 반환 — user_id 필터 없이 최신순 조회(started_at desc). (W5b)
+      const { data, error } = await client
+        .from('lesson_sessions')
+        .select(LESSON_HISTORY_SELECT)
+        .order('started_at', { ascending: false });
+      if (error) throw dataError('세션 목록 조회');
+      const rows = (data as Record<string, unknown>[] | null) ?? [];
+      return rows.map(rowToLessonSummary);
+    },
+
+    async getSession(sessionId) {
+      // RLS가 본인 행만 반환 — 타인 id를 넘겨도 0행(빈 배열). 단건이라 첫 행만 사용. (W5b)
+      const { data, error } = await client
+        .from('lesson_sessions')
+        .select(LESSON_HISTORY_SELECT)
+        .eq('id', sessionId);
+      if (error) throw dataError('세션 조회');
+      const rows = (data as Record<string, unknown>[] | null) ?? [];
+      return rows.length > 0 ? rowToLessonSummary(rows[0]) : null;
+    },
+
+    async getSessionTurns(sessionId) {
+      // RLS(세션 소유권 위임)가 본인 세션의 턴만 반환 — 신규 RPC 불필요. (W5b)
+      const { data, error } = await client
+        .from('conversation_turns')
+        .select('order, role, transcript, corrections')
+        .eq('session_id', sessionId)
+        .order('order', { ascending: true });
+      if (error) throw dataError('세션 턴 조회');
+      const rows = (data as Record<string, unknown>[] | null) ?? [];
+      return rows.map((r) => ({
+        order: Number(r.order ?? 0),
+        role: (r.role as LessonTurnRow['role']) ?? 'user',
+        transcript: String(r.transcript ?? ''),
+        corrections: toCorrections(r.corrections),
+      }));
     },
   };
 }

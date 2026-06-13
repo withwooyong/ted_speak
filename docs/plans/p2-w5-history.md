@@ -135,8 +135,10 @@ W5-3은 스키마 무변경이라 W5-1과 독립이지만, ted-run 한 흐름에
 
 ## 5. 이월(후속)
 
-- **레슨 세션 히스토리**: 같은 읽기 패턴(`lesson_sessions`/`conversation_turns` 본인 select)으로 확장 가능 —
-  히스토리 화면에 레슨 탭 추가 시점에. W5는 튜터만.
+- ~~**레슨 세션 히스토리**: 같은 읽기 패턴(`lesson_sessions`/`conversation_turns` 본인 select)으로 확장 가능 —
+  히스토리 화면에 레슨 탭 추가 시점에. W5는 튜터만.~~ → **W5b(세션 9)에서 완료**: 통합 목록(시간순)으로
+  구현, 레슨 교정 저장도 연결. docs/plans/p2-w5b-lesson-history.md, ADR-0011 부록.
 - **복습 SRS·즐겨찾기 정렬·태그**: Phase 3 학습 정착 기능.
-- **표현 저장의 lesson 교정 출처**: 레슨 대화 화면 교정에도 같은 `save` 핸들러 연결(저장소는 이미 출처 무관).
+- ~~**표현 저장의 lesson 교정 출처**: 레슨 대화 화면 교정에도 같은 `save` 핸들러 연결~~ → **W5b 완료**
+  (`ConversationStep`에 `useSaveExpression` 연결, 저장소는 출처 무관).
 - **W6 주간 리포트**: W5가 연 `listSessions()` 집계를 재사용(교정 TOP5는 `saved_expressions`/턴 corrections 집계).

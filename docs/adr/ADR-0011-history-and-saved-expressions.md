@@ -62,8 +62,18 @@ PII 미로깅 `dataError`)을 따르되, **delete를 허용**한다. 근거:
 - 신규 마이그레이션 1건(`saved_expressions`), `verify-rls.mts` +12 케이스(64/64). 신규 벤더·RPC 없음.
 - vitest 400(+31), 커버리지 95.31/86.04/97.71. E2E tutor 15/15(W5 5건: 교정 저장·히스토리 재생·복습),
   mock 33/33 회귀.
-- **이월**: 레슨 세션 히스토리(같은 읽기 패턴), 복습 SRS·즐겨찾기(Phase 3), W6 주간 리포트는
-  `listSessions()` 집계 재사용.
+- **이월**: 복습 SRS·즐겨찾기(Phase 3), W6 주간 리포트는 `listSessions()` 집계 재사용.
+
+## 부록 — W5b 레슨 히스토리 확장 (세션 9, 2026-06-13)
+
+위 "이월: 레슨 세션 히스토리"를 같은 읽기 패턴으로 실현했다(스키마 변경 0). `lesson_sessions`/
+`conversation_turns`의 기존 본인 select RLS를 재사용해 `ProgressRepo`에 `listSessions`/`getSession`/
+`getSessionTurns`만 추가했다(신규 RPC·grant 0). 대화 기록 화면은 순수 헬퍼 `mergeHistory(tutor, lesson)`로
+튜터·레슨 세션을 시간순 통합하고, 상세는 `?kind=lesson|tutor`로 저장소를 분기한다(타인 id는 RLS가
+0행 → null, 튜터와 동일한 IDOR 방어). 레슨 대화 교정도 `useSaveExpression`(튜터·히스토리 공용)을
+`ConversationStep`(선택적 props, 미주입 시 회귀 0)에 연결했다. mock 모드는 완료 세션을 별도 `history`
+맵에 보존(`getOrCreateSession`은 활성만 재개)해 웹/E2E 히스토리를 지원한다. vitest 419(+19),
+E2E tutor 15/15·mock 33/33 회귀. 근거: docs/plans/p2-w5b-lesson-history.md.
 
 ## 한계
 
