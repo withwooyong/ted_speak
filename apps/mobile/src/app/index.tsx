@@ -13,8 +13,11 @@ import { useUserStore } from '@/stores/user';
 export default function Index() {
   const status = useAuthStore((s) => s.status);
   const onboarded = useUserStore((s) => s.onboarded);
+  const hydrating = useUserStore((s) => s.hydrating);
 
   if (status === 'signed_out') return <Redirect href="/login" />;
+  // 서버 하이드레이트 완료 전에는 리다이렉트하지 않는다 — 온보딩 완료자를 온보딩으로 잘못 보내는 것 방지.
+  if (hydrating) return null;
   if (!onboarded) return <Redirect href="/onboarding" />;
   return <Redirect href="/(tabs)/home" />;
 }

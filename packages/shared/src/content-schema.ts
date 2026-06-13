@@ -7,6 +7,11 @@ import { z } from 'zod';
 
 export const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2'] as const;
 
+// 사용자 도메인(profiles.goal) 상수지만 여기(런타임 파일)에 둔다 —
+// types.ts는 타입 전용(vitest coverage exclude 전제)이라 런타임 값을 둘 수 없다.
+// init.sql profiles.goal CHECK과 동시 수정 필수.
+export const LEARNING_GOALS = ['daily', 'business', 'travel'] as const;
+
 export const KeyPhraseSchema = z.object({
   en: z.string().min(1),
   ko: z.string().min(1),

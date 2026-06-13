@@ -1,6 +1,6 @@
 import { colors, radius } from '@ted-speak/shared';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -29,7 +29,9 @@ type Mode = 'signin' | 'signup';
  */
 export default function Login() {
   const router = useRouter();
+  const status = useAuthStore((s) => s.status);
   const onboarded = useUserStore((s) => s.onboarded);
+  const hydrating = useUserStore((s) => s.hydrating);
   const signInMock = useAuthStore((s) => s.signInMock);
 
   const [mode, setMode] = useState<Mode>('signin');
@@ -42,10 +44,15 @@ export default function Login() {
   const [info, setInfo] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // onAuthStateChange가 세션을 반영하면 status가 바뀌므로, 성공 후 직접 라우팅한다.
-  const routeAfterAuth = () => {
+  // 로그인/가입 성공 후 라우팅은 반응형으로 처리한다 — 직접 router.replace를 호출하면
+  // ① onAuthStateChange가 다음 마이크로태스크에 발화해 status가 아직 signed_out인 창에 걸리고
+  // ② 스테일 클로저 onboarded(로그아웃 reset 직후 false)로 서버 하이드레이트를 우회한다.
+  // status·hydrating·onboarded가 확정되면 effect가 다시 돌아 올바른 목적지로 보낸다.
+  // hydrating 동안 대기해야 supabase 실로그인의 onboarded가 서버 값으로 확정된 뒤 라우팅된다.
+  useEffect(() => {
+    if (status !== 'signed_in' || hydrating) return;
     router.replace(onboarded ? '/(tabs)/home' : '/onboarding');
-  };
+  }, [status, hydrating, onboarded, router]);
 
   const submit = async () => {
     if (submitting) return; // 이중 제출 방지
@@ -62,15 +69,13 @@ export default function Login() {
     setSubmitting(true);
     try {
       if (mode === 'signin') {
+        // 라우팅은 위 effect가 status/hydrating 확정 후 처리한다.
         await signInWithEmail(email.trim(), password);
-        routeAfterAuth();
       } else {
         await signUpWithEmail(email.trim(), password);
-        // 로컬 supabase는 즉시 로그인됨 → onAuthStateChange가 status를 바꾸고 라우팅한다.
+        // 로컬 supabase는 즉시 로그인됨 → onAuthStateChange가 status를 바꾸면 effect가 라우팅한다.
         // 이메일 확인이 필요한 환경(원격)에서는 세션이 없으므로 확인 안내만 표시한다.
-        if (useAuthStore.getState().status === 'signed_in') {
-          routeAfterAuth();
-        } else {
+        if (useAuthStore.getState().status !== 'signed_in') {
           setInfo('확인 이메일을 보냈어요. 메일의 링크를 눌러 가입을 완료해 주세요.');
         }
       }
@@ -83,8 +88,8 @@ export default function Login() {
   };
 
   const handleMockLogin = () => {
+    // mock 모드는 hydrating이 항상 false라 effect가 즉시 onboarded 기준으로 라우팅한다.
     signInMock();
-    router.replace(onboarded ? '/(tabs)/home' : '/onboarding');
   };
 
   const showMock = canShowMockLogin(authMode.mode, !__DEV__);

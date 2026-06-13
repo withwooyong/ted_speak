@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-06-13 (세션 4) — P1.5 다듬기: 재로그인 하이드레이트 + reply clamp (보안 민감 ted-run)
+
+- V1: supabase 실로그인 시 profiles 1회 재조회 하이드레이트 — `profiles.onboarded_at` 마커(신규 마이그레이션) + `lib/profile-sync.ts`(auth 스토어 구독, require cycle 방지). 로그아웃→재로그인 시 온보딩 스킵·홈 직행, 서버 streak 반영. `profileToHydration` 방어 검증(enum 밖→null, 범위 밖→기본값/0, 날짜 형식 검증), 권위 출처 구분(streak·last_study_date는 서버 트리거)
+- V2: `TurnFeedback.reply` 문장 경계 clamp(`MAX_REPLY_CHARS=400`) — 스키마 `.max()` 하드 실패 대신 회복형 절단(Fallback 원칙), TTS 비용·재생 시간 상한
+- 보안(2a MEDIUM 4·LOW 3 + 2b HIGH 1·MEDIUM 1 수정·재리뷰 PASS): in-flight 크로스유저 PII 주입 차단(스테일 응답 폐기), 리스너 경유 로그아웃 PII 정리(재수화 역전 가드), `login.tsx` imperative→반응형 라우팅(스테일 onboarded 우회 해소), `LEARNING_GOALS` 단일 출처화 — semgrep 신규 0건, **RLS 36/36**(onboarded_at 케이스 3 추가)
+- 검증: 테스트 272개(커버리지 93.4/86.1/96.5%), E2E supabase-flow 13 PASS(재로그인 온보딩 스킵·DB 반영·PII 정리 신규 S12 포함)
+- 문서: ADR-0006(하이드레이트·신뢰 경계·clamp), 실기기 검증 체크리스트, U11 OAuth 준비 문서, Phase 2 계획서 초안 (ADR-0005 §한계 2건 해소 포인터)
+
 ## 2026-06-12~13 (세션 3) — P1 핵심 루프 U1~U9 (보안 민감 ted-run) `6489099`
 
 - U1: `reliableFetch` 신뢰성 계층 — 시도당 타임아웃 15s + 지수 백오프 재시도 2회, 호출자 signal 취소, 스트림 첫 바이트 전만 재시도 (undici 스톨 대응, ADR-0003 갱신)

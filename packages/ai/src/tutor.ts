@@ -1,4 +1,4 @@
-import { TurnFeedbackSchema, type TurnFeedback } from '@ted-speak/shared';
+import { clampReply, TurnFeedbackSchema, type TurnFeedback } from '@ted-speak/shared';
 
 import { type AiClientConfig, resolveConfig } from './config';
 import { AiError, throwIfNotOk } from './error';
@@ -66,5 +66,6 @@ export async function getTurnFeedback(
   if (!result.success) {
     throw new AiError('LLM 응답이 TurnFeedback 스키마 위반', undefined, content.slice(0, 200));
   }
-  return result.data;
+  // reply 길이 캡 — LLM이 max_tokens를 넘겨도 턴 전체를 실패시키지 않고 문장 경계 절단으로 회복 (2b LOW)
+  return { ...result.data, reply: clampReply(result.data.reply) };
 }

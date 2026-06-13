@@ -109,6 +109,29 @@ try {
       .update({ display_name: '우용', daily_goal_minutes: 15 })
       .eq('id', userA.id);
     check('허용 컬럼(display_name 등)은 수정 가능', !nameErr, nameErr?.message);
+
+    // onboarded_at (P1.5 V1) — 본인 온보딩 마커는 grant 추가로 수정 가능, 타인 행은 RLS가 차단.
+    const { error: onbErr } = await userA.client
+      .from('profiles')
+      .update({ onboarded_at: new Date().toISOString() })
+      .eq('id', userA.id);
+    check('본인 onboarded_at은 수정 가능 (온보딩 마커 grant)', !onbErr, onbErr?.message);
+
+    const { data: onbSpoof } = await userB.client
+      .from('profiles')
+      .update({ onboarded_at: new Date().toISOString() })
+      .eq('id', userA.id)
+      .select();
+    check('타인 onboarded_at 위조 불가 (RLS 행 차단)', (onbSpoof?.length ?? 0) === 0);
+
+    // onboarded_at grant가 다른 민감 컬럼을 함께 열지 않았는지 명시 검증 —
+    // 위 "위조 불가" 루프와 별개로, onboarded_at update가 성공한 동일 클라이언트에서 재확인한다
+    // (루프 순서·구성 변경에 의존하지 않는 독립 케이스).
+    const { error: stillDenied } = await userA.client
+      .from('profiles')
+      .update({ streak: 7, is_premium: true })
+      .eq('id', userA.id);
+    check('onboarded_at grant 후에도 streak·is_premium은 여전히 위조 불가', !!stillDenied);
   }
 
   console.log('\n■ lesson_sessions / conversation_turns');

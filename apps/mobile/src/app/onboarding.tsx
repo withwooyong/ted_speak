@@ -73,7 +73,7 @@ export default function Onboarding() {
       try {
         const { error } = await supabase
           .from('profiles')
-          .update(buildProfileUpdate(selections))
+          .update(buildProfileUpdate(selections, new Date().toISOString()))
           .eq('id', user.id);
         if (error) {
           // 서버 원문 노출 금지 — 경고 1줄만. 로컬 저장은 유지하고 진행한다.

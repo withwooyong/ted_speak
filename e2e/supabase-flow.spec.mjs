@@ -278,6 +278,137 @@ async function main() {
       fail('S9', e.message, consoleLogs.slice(-5).join('\n'));
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // 시나리오 12: onboarded_at DB 기록 + 로그아웃→재로그인 온보딩 스킵 + PII 정리
+    //
+    // 전제: S9에서 testEmail로 가입·온보딩 완료 후 홈에 있어야 함.
+    // 알려진 제약: 웹은 user 스토어가 메모리 폴백이라 앱 재시작 시 상태 소실 —
+    //   "재시작 후 유지" 검증 불가. 같은 페이지 세션 내 로그아웃→재로그인으로 검증한다.
+    //   하이드레이트는 네트워크 fetch라 URL 또는 요소 대기를 써서 충분히 기다린다.
+    // ═══════════════════════════════════════════════════════════════════════
+    console.log('\n[S12] onboarded_at DB 기록 + 로그아웃→재로그인 온보딩 스킵 + PII 정리');
+
+    // ─── S12a: profiles.onboarded_at이 DB에 기록됐는지 service_role로 확인 ───────
+    console.log('\n[S12a] profiles.onboarded_at DB 반영 확인 (service_role)');
+    try {
+      const dbCheck = execSync(
+        `psql postgresql://postgres:postgres@127.0.0.1:55322/postgres -t -c ` +
+        `"SELECT p.onboarded_at FROM auth.users u ` +
+        `JOIN public.profiles p ON u.id = p.id ` +
+        `WHERE u.email = '${testEmail}' LIMIT 1;" 2>&1`,
+        { encoding: 'utf8', timeout: 10000 }
+      ).trim();
+      info(`DB onboarded_at 조회: "${dbCheck}"`);
+
+      if (dbCheck && !dbCheck.includes('ERROR') && dbCheck.length > 0 && dbCheck !== '') {
+        pass('S12a-onboarded-at', `profiles.onboarded_at DB 기록 확인: ${dbCheck}`);
+      } else {
+        fail('S12a-onboarded-at', `profiles.onboarded_at 미기록 — 온보딩 완료 시 buildProfileUpdate가 onboarded_at을 포함해야 함. DB 결과: "${dbCheck}"`);
+      }
+    } catch (e) {
+      fail('S12a-onboarded-at', `psql 실행 오류: ${e.message}`);
+    }
+
+    // ─── S12b: 로그아웃 → 같은 계정 재로그인 → 온보딩 스킵·홈 직행 ──────────────
+    console.log('\n[S12b] 로그아웃 → 재로그인 → 온보딩 스킵·홈 직행');
+    try {
+      // 현재 홈에 있어야 함 (S9 완료 후). 프로필 탭으로 이동해 로그아웃한다.
+      const profileTabLink = page.locator('[href*="profile"]').first();
+      if (await profileTabLink.count() > 0) {
+        await profileTabLink.click();
+        await page.waitForTimeout(1000);
+      } else {
+        // 탭 링크가 없으면 홈이 아닌 상태 — 홈으로 이동 후 재시도
+        info('프로필 탭 링크 없음 — 현재 URL: ' + page.url());
+        await page.goto(BASE_URL + '/', { waitUntil: 'networkidle', timeout: TIMEOUT });
+        await page.waitForURL((u) => u.href.includes('home') || u.href.includes('login'), { timeout: TIMEOUT });
+        const urlNow = page.url();
+        info(`홈 도달 여부: ${urlNow}`);
+        const profileTabLink2 = page.locator('[href*="profile"]').first();
+        if (await profileTabLink2.count() > 0) {
+          await profileTabLink2.click();
+          await page.waitForTimeout(1000);
+        }
+      }
+
+      // 로그아웃 버튼 클릭
+      const logoutBtn = page.locator('text=로그아웃').first();
+      await logoutBtn.waitFor({ timeout: TIMEOUT });
+      await logoutBtn.click();
+
+      // 로그아웃 직후 — 로그인 화면 복귀 확인 (PII 정리, S12c)
+      await page.waitForURL((u) => u.href.includes('login'), { timeout: TIMEOUT });
+      const urlAfterLogout = page.url();
+      info(`로그아웃 후 URL: ${urlAfterLogout}`);
+
+      // ─── S12c: 로그아웃 직후 로그인 화면이 노출되고 이전 사용자 데이터가 없음 ───
+      const contentAfterLogout = await page.content();
+      const isLoginPage = urlAfterLogout.includes('login');
+      const hasNoUserData = !contentAfterLogout.includes(testEmail);
+
+      if (isLoginPage) {
+        pass('S12c-pii-clear', '로그아웃 → 로그인 화면 복귀 (이전 사용자 PII 미노출)');
+      } else {
+        await screenshot(page, 's12c-not-login').catch(() => {});
+        fail('S12c-pii-clear', `로그아웃 후 로그인 화면 미복귀: ${urlAfterLogout}`);
+      }
+
+      if (hasNoUserData) {
+        pass('S12c-no-email-leak', '로그아웃 화면에 이전 사용자 이메일 미노출');
+      } else {
+        fail('S12c-no-email-leak', `로그인 화면에 이전 사용자 이메일(${testEmail}) 노출 — PII 잔존`);
+      }
+
+      await screenshot(page, 's12c-after-logout');
+
+      // 같은 계정으로 재로그인 (로그인 탭 확인 후 이메일/비밀번호 입력)
+      const signinTab = page.locator('text=로그인').first();
+      await signinTab.waitFor({ timeout: TIMEOUT });
+      // 로그인 탭이 아직 선택 안됐을 수 있으면 클릭
+      await signinTab.click();
+      await page.waitForTimeout(300);
+
+      const emailInput = page.locator('input').first();
+      const passwordInput = page.locator('input').nth(1);
+      await emailInput.fill(testEmail);
+      await passwordInput.fill(testPassword);
+
+      const submitBtn = page.locator('text=로그인').last();
+      await submitBtn.click();
+      info(`재로그인 시도: ${testEmail}`);
+
+      // 하이드레이트 완료 후 URL 대기 — 홈 또는 온보딩.
+      // 하이드레이트는 네트워크 fetch이므로 고정 sleep 대신 URL 변화 대기를 사용한다.
+      await page.waitForURL(
+        (u) => u.href.includes('home') || u.href.includes('onboarding'),
+        { timeout: TIMEOUT }
+      );
+
+      const urlAfterRelogin = page.url();
+      info(`재로그인 후 URL: ${urlAfterRelogin}`);
+      await screenshot(page, 's12b-after-relogin');
+
+      const isHome = urlAfterRelogin.includes('home') || urlAfterRelogin.includes('tabs');
+      const isOnboarding = urlAfterRelogin.includes('onboarding');
+
+      if (isHome) {
+        pass('S12b-relogin-skip-onboarding', '재로그인 → 온보딩 스킵·홈 직행 (profiles.onboarded_at 하이드레이트 정상)');
+      } else if (isOnboarding) {
+        fail(
+          'S12b-relogin-skip-onboarding',
+          `재로그인 후 온보딩으로 이동 — profile-sync가 onboarded_at을 읽어 onboarded=true로 설정하지 않음. ` +
+          `원인 후보: ① profile-sync.ts의 하이드레이트 미동작 ② onboarded_at이 DB에 없음(S12a 실패) ` +
+          `③ index.tsx의 hydrating 보류 로직 오작동 ④ login.tsx의 routeAfterAuth가 온보딩으로 라우팅(onboarded=false인 상태)`
+        );
+      } else {
+        fail('S12b-relogin-skip-onboarding', `예상치 못한 URL: ${urlAfterRelogin}`);
+      }
+
+    } catch (e) {
+      await screenshot(page, 's12-error').catch(() => {});
+      fail('S12', e.message, consoleLogs.slice(-5).join('\n'));
+    }
+
   } finally {
     await browser.close();
 
