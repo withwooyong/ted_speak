@@ -70,10 +70,15 @@ barge-in 175ms, ~$0.035–0.063/분. AI 튜터는 Realtime, 레슨은 turn-based
   vitest 400·E2E tutor 15/15(W5 5건)·mock 33/33·verify-rls 64/64. 작업계획서 `docs/plans/p2-w5-history.md`.
   히스토리는 **튜터 세션만**(레슨 이월).
 
-### W6. 주간 스피킹 리포트
+### W6. 주간 스피킹 리포트 ✅ 완료 (2026-06-13, 세션 10)
 
 - 주간 발화 시간·완료 레슨·교정 TOP5 집계 (user_progress·turns 기반, 클라이언트 집계로 시작)
 - **완료 기준**: 프로필 탭 주간 카드 표시
+- **완료**: W5/W5b 패턴 연장 — `ProgressRepo.listProgress()`(기존 select RLS 재사용, 신규 RPC·스키마
+  변경 0) + 순수 `weekly-report.ts` 집계. 프로필 "최근 7일" 카드(발화 분·완료 레슨·교정 TOP5 빈도).
+  정직성: 서버 불변값만 집계(레슨 speaking_seconds·완료 튜터 duration·user_progress 행수·턴 corrections).
+  rolling 7일·레슨 최초 완료분만 집계는 의도된 한계로 문서화(ADR-0011 W6 부록). vitest 446·E2E mock
+  34/34·tutor 15/15. 작업계획서 `docs/plans/p2-w6-weekly-report.md`.
 
 ### W7. (이월) P1 잔여 다듬기
 

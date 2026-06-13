@@ -728,6 +728,15 @@ async function runMockTests() {
         fail('S8-stats', '통계 미표시');
       }
 
+      // 주간 스피킹 리포트 카드 (W6) — "최근 7일" 헤더 + 발화/완료 라벨이 크래시 없이 렌더되는지
+      const hasWeeklyCard = profileContent.includes('최근 7일') &&
+        profileContent.includes('발화 시간') && profileContent.includes('완료 레슨');
+      if (hasWeeklyCard) {
+        pass('S8-weekly-report', '주간 리포트 카드(최근 7일·발화·완료) 표시 확인');
+      } else {
+        fail('S8-weekly-report', '주간 리포트 카드 미표시');
+      }
+
       // 로그아웃 버튼
       const logoutBtn = page.locator('text=로그아웃').first();
       const logoutCount = await logoutBtn.count();

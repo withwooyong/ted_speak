@@ -67,6 +67,18 @@ export interface RecordProgressInput {
 }
 
 /**
+ * 진행 레코드 1건 (W6) — 주간 리포트 집계용. user_progress 행을 평탄화.
+ * speaking_seconds·completed_at은 서버가 적재하는 불변값(클라 위조 불가).
+ */
+export interface ProgressRecord {
+  lessonId: string;
+  /** ISO 8601 최초 완료 시각 */
+  completedAt: string;
+  speakingSeconds: number;
+  score: number | null;
+}
+
+/**
  * 레슨 세션 히스토리 1건 (W5b) — 대화 기록 목록·상세용으로 lesson_sessions 행을 평탄화.
  * 튜터 TutorSessionSummary와 동형이되 레슨 고유 필드(lessonId·completedAt)를 가진다.
  */
@@ -100,6 +112,8 @@ export interface ProgressRepo {
   recordProgress: (input: RecordProgressInput) => Promise<void>;
   getCompletedLessonIds: () => Promise<string[]>;
   isLessonCompletedToday: () => Promise<boolean>;
+  /** 본인 진행 레코드 전체 — 주간 리포트 집계용 (W6). 기존 select RLS 재사용 */
+  listProgress: () => Promise<ProgressRecord[]>;
   /** 본인 레슨 세션 목록 — 최신순(started_at desc). 대화 기록 화면용 (W5b) */
   listSessions: () => Promise<LessonSessionSummary[]>;
   /** 세션 1건 메타 조회 — 없으면 null. 대화 기록 상세 헤더용 (W5b) */
@@ -126,6 +140,17 @@ interface MockSessionMeta {
   summary: unknown;
 }
 
+/**
+ * 진행 완료 레코드 (mock, W6) — 발화시간·점수·완료시각을 보존해 주간 리포트를 집계한다.
+ * 구버전은 `string`(YYYY-MM-DD)만 저장했으므로 읽을 때 방어적으로 정규화한다(하위 호환).
+ */
+interface MockProgress {
+  /** ISO 8601 최초 완료 시각 */
+  completedAt: string;
+  speakingSeconds: number;
+  score: number;
+}
+
 interface MockState {
   /** lessonId → 현재 활성(in_progress) 세션 (이어하기 인덱스) */
   sessions: Record<string, SessionRow>;
@@ -133,8 +158,28 @@ interface MockState {
   history: Record<string, MockSessionMeta>;
   /** sessionId → 턴 누적 */
   turns: Record<string, TurnInput[]>;
-  /** lessonId → 마지막 완료 날짜 (YYYY-MM-DD, 로컬) */
-  progress: Record<string, string>;
+  /** lessonId → 완료 레코드. 구버전은 `string`(YYYY-MM-DD)이라 읽기 시 정규화 */
+  progress: Record<string, MockProgress | string>;
+}
+
+/** 진행 값(신/구 포맷)을 로컬 완료 날짜(YYYY-MM-DD)로 — 당일 완료 판정용 */
+function progressLocalDate(value: MockProgress | string): string {
+  if (typeof value === 'string') return value; // 구 포맷은 이미 로컬 날짜 문자열
+  return localDateString(new Date(value.completedAt));
+}
+
+/** 진행 값(신/구 포맷)을 ProgressRecord로 정규화 — 구 포맷은 발화시간/점수 0 */
+function toProgressRecord(lessonId: string, value: MockProgress | string): ProgressRecord {
+  if (typeof value === 'string') {
+    // 구 포맷은 로컬 날짜라 로컬 자정으로 파싱한다(UTC 고정 시 TZ 경계에서 하루 밀릴 수 있음).
+    return { lessonId, completedAt: new Date(`${value}T00:00:00`).toISOString(), speakingSeconds: 0, score: 0 };
+  }
+  return {
+    lessonId,
+    completedAt: value.completedAt,
+    speakingSeconds: Math.max(0, value.speakingSeconds),
+    score: value.score,
+  };
 }
 
 const MOCK_KEY_BASE = 'talkted.progress.v1';
@@ -273,7 +318,14 @@ export function createMockProgressRepo(
 
     async recordProgress(input) {
       const state = await load();
-      state.progress[input.lessonId] = localDateString(now());
+      // first-write-wins — 서버 PK (user_id, lesson_id) 불변·트리거 1회 누적 패리티.
+      // 재완료해도 최초 완료시각·발화시간을 보존한다(주간 리포트 부풀리기 방지).
+      if (state.progress[input.lessonId]) return;
+      state.progress[input.lessonId] = {
+        completedAt: now().toISOString(),
+        speakingSeconds: Math.max(0, input.speakingSeconds),
+        score: input.score,
+      };
       await save(state);
     },
 
@@ -285,7 +337,12 @@ export function createMockProgressRepo(
     async isLessonCompletedToday() {
       const state = await load();
       const today = localDateString(now());
-      return Object.values(state.progress).some((date) => date === today);
+      return Object.values(state.progress).some((v) => progressLocalDate(v) === today);
+    },
+
+    async listProgress() {
+      const state = await load();
+      return Object.entries(state.progress).map(([lessonId, value]) => toProgressRecord(lessonId, value));
     },
 
     async listSessions() {
@@ -472,6 +529,21 @@ export function createSupabaseProgressRepo(
       if (error) throw dataError('진행도 조회');
       const rows = (data as Record<string, unknown>[] | null) ?? [];
       return rows.map((r) => String(r.lesson_id));
+    },
+
+    async listProgress() {
+      // 주간 리포트 집계용 — RLS 본인 행만 반환(신규 RPC·스키마 변경 없음, W6).
+      const { data, error } = await client
+        .from('user_progress')
+        .select('lesson_id, completed_at, speaking_seconds, score');
+      if (error) throw dataError('진행 레코드 조회');
+      const rows = (data as Record<string, unknown>[] | null) ?? [];
+      return rows.map((r) => ({
+        lessonId: String(r.lesson_id ?? ''),
+        completedAt: String(r.completed_at ?? ''),
+        speakingSeconds: Number(r.speaking_seconds ?? 0),
+        score: r.score === null || r.score === undefined ? null : Number(r.score),
+      }));
     },
 
     async isLessonCompletedToday() {

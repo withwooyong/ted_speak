@@ -14,6 +14,7 @@ import {
   type KeyValueStorage,
   type LessonSessionSummary,
   type LessonTurnRow,
+  type ProgressRecord,
   type ProgressRepo,
   type SessionRow,
 } from '../src/lib/progress-repo';
@@ -337,6 +338,52 @@ describe('createMockProgressRepo', () => {
     const legacy2 = createMockProgressRepo(storage);
     expect(await legacy2.getCompletedLessonIds()).toContain(LESSON_A);
   });
+
+  // W6. listProgress — 주간 리포트 집계용 진행 레코드 읽기
+  it('listProgress는 recordProgress한 레슨을 발화시간·점수·완료시각과 함께 반환한다', async () => {
+    const fixedNow = new Date('2026-06-13T01:00:00Z');
+    const repoNow = createMockProgressRepo(storage, { now: () => fixedNow });
+    await repoNow.recordProgress({ lessonId: LESSON_A, speakingSeconds: 75, score: 88 });
+
+    const records = await repoNow.listProgress();
+    expect(records).toHaveLength(1);
+    const rec = records[0];
+    expect(rec.lessonId).toBe(LESSON_A);
+    expect(rec.speakingSeconds).toBe(75);
+    expect(rec.score).toBe(88);
+    expect(new Date(rec.completedAt).getTime()).toBe(fixedNow.getTime());
+  });
+
+  it('listProgress는 기록 없으면 빈 배열이다', async () => {
+    expect(await repo.listProgress()).toEqual([]);
+  });
+
+  it('listProgress는 first-write-wins — 재완료해도 최초 발화시간을 보존한다 (서버 PK 불변 패리티)', async () => {
+    await repo.recordProgress({ lessonId: LESSON_A, speakingSeconds: 60, score: 80 });
+    await repo.recordProgress({ lessonId: LESSON_A, speakingSeconds: 30, score: 90 });
+
+    const records = await repo.listProgress();
+    expect(records).toHaveLength(1);
+    expect(records[0].speakingSeconds).toBe(60);
+    expect(records[0].score).toBe(80);
+  });
+
+  it('listProgress는 구 포맷(날짜 문자열) 저장소를 방어적으로 정규화한다', async () => {
+    // 구 버전이 저장한 progress: Record<lessonId, 'YYYY-MM-DD'> 형태를 직접 심는다
+    await storage.setItem(
+      'talkted.progress.v1',
+      JSON.stringify({ sessions: {}, history: {}, turns: {}, progress: { [LESSON_A]: '2026-06-10' } }),
+    );
+    const migrated = createMockProgressRepo(storage);
+
+    const records = await migrated.listProgress();
+    expect(records).toHaveLength(1);
+    expect(records[0].lessonId).toBe(LESSON_A);
+    expect(records[0].speakingSeconds).toBe(0);
+    expect(Number.isNaN(new Date(records[0].completedAt).getTime())).toBe(false);
+    // 구 포맷도 완료 목록에는 그대로 노출
+    expect(await migrated.getCompletedLessonIds()).toContain(LESSON_A);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -651,6 +698,42 @@ describe('createSupabaseProgressRepo', () => {
     consoleSpy.mockRestore();
     consoleInfoSpy.mockRestore();
     consoleDebugSpy.mockRestore();
+  });
+
+  // W6. listProgress — user_progress를 발화시간·완료시각·점수와 함께 select (RLS 본인 행)
+  it('listProgress는 user_progress를 select하고 행을 ProgressRecord로 매핑한다', async () => {
+    fakeClient.setPreset('user_progress.select', {
+      data: [
+        { lesson_id: 'lesson-001', completed_at: '2026-06-12T10:00:00Z', speaking_seconds: 90, score: 85 },
+        { lesson_id: 'lesson-002', completed_at: '2026-06-10T08:00:00Z', speaking_seconds: 120, score: null },
+      ],
+      error: null,
+    });
+
+    const records: ProgressRecord[] = await repo.listProgress();
+
+    const calls = fakeClient.getCalls();
+    const selectCall = calls.find((c) => c.table === 'user_progress' && c.operation === 'select');
+    expect(selectCall).toBeDefined();
+    // 발화시간·완료시각 컬럼이 select에 포함되어야 한다
+    const selectArg = String(selectCall!.args[0] ?? '');
+    expect(selectArg).toContain('speaking_seconds');
+    expect(selectArg).toContain('completed_at');
+
+    expect(records).toHaveLength(2);
+    expect(records[0]).toMatchObject({
+      lessonId: 'lesson-001',
+      completedAt: '2026-06-12T10:00:00Z',
+      speakingSeconds: 90,
+      score: 85,
+    });
+    // null score는 그대로 보존(또는 null)
+    expect(records[1].score).toBeNull();
+  });
+
+  it('listProgress: error 응답 시 throw한다', async () => {
+    fakeClient.setPreset('user_progress.select', { data: null, error: { message: 'rls denied' } });
+    await expect(repo.listProgress()).rejects.toThrow();
   });
 });
 

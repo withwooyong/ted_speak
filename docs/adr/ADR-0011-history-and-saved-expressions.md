@@ -75,6 +75,27 @@ PII 미로깅 `dataError`)을 따르되, **delete를 허용**한다. 근거:
 맵에 보존(`getOrCreateSession`은 활성만 재개)해 웹/E2E 히스토리를 지원한다. vitest 419(+19),
 E2E tutor 15/15·mock 33/33 회귀. 근거: docs/plans/p2-w5b-lesson-history.md.
 
+## 부록 — W6 주간 스피킹 리포트 (세션 10, 2026-06-13)
+
+W5/W5b의 "기존 select RLS 재사용 + 순수 집계" 패턴을 한 번 더 연장해 프로필에 **최근 7일 리포트**를
+얹었다(스키마 변경 0·신규 RPC 0). `ProgressRepo`에 `listProgress()`(기존 "본인 진행도 조회" select RLS
+재사용 — `user_progress`의 `completed_at`/`speaking_seconds`/`score` 읽기)만 추가했다. 집계는 순수
+`weekly-report.ts`(`sumSpeakingSeconds`·`countCompletedLessons`·`topCorrections`·`collectWeeklyReport`).
+
+**정직성 원칙(ADR-0010 선례 — 가짜 지표 출시 안 함)**: 세 지표 모두 클라이언트가 위조할 수 없는
+서버 측 값만 집계한다 — 발화 시간은 레슨 `speaking_seconds`(완료 시 적재·불변) + 완료 튜터
+`duration_seconds`(`complete_tutor_session` RPC가 `now()-started_at`로 산정, 진행 중 세션 제외), 완료
+레슨 수는 `user_progress` 행 수(PK가 `(user_id, lesson_id)`라 레슨당 1행·최초 완료 시각), 교정 TOP5는
+기간 내 세션 턴의 `corrections` 빈도. 클라 집계지만 원천이 서버 불변값이라 farming 표면 0.
+
+**의도된 한계(정직하게 문서화)**: ① 레슨 발화 시간은 **최초 완료분만** 집계된다(`user_progress`가
+레슨당 1행이라 재복습 발화는 세션 단위로 적재되지 않음 — 튜터는 매 세션 누적). ② 기간은 캘린더 주가
+아닌 **rolling 7일**(월요일 빈 카드 UX 회피). ③ 교정 턴은 세션 `started_at` 기준 필터(완료 레슨은
+`completed_at` 기준)라 경계에 걸친 레슨은 교정 누락 가능(레슨은 수 시간 내 완료라 실무상 무해).
+Mock은 `progress`를 `{completedAt, speakingSeconds, score}` 레코드로 확장하고 **first-write-wins**로
+서버 PK 불변·트리거 1회 누적과 패리티(구 문자열 포맷은 읽기 시 정규화). vitest 446(+27), 커버리지
+95.61/85.03/98.11/97.79. E2E mock 34/34(S8 주간 카드)·tutor 15/15 회귀. 근거: docs/plans/p2-w6-weekly-report.md.
+
 ## 한계
 
 - 히스토리 mock 모드(dev/web)는 턴 본문을 보존한다(네임스페이스 격리·웹은 메모리 폴백). 프로덕션

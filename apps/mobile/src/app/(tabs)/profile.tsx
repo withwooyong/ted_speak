@@ -1,8 +1,9 @@
 import { colors, radius } from '@ted-speak/shared';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import WeeklyReportCard from '@/components/profile/WeeklyReportCard';
 import { getSavedRepo } from '@/lib/saved';
 import { signOut, useAuthStore } from '@/stores/auth';
 import { useUserStore } from '@/stores/user';
@@ -45,7 +46,7 @@ export default function Profile() {
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.head}>
         <View style={styles.who}>
           <Text style={styles.email}>{user?.email ?? '게스트'}</Text>
@@ -65,6 +66,8 @@ export default function Profile() {
         <Stat value={`${xp}`} unit=" XP" label="경험치" />
         <Stat value={`🔥 ${streak}`} unit="" label="streak" />
       </View>
+
+      <WeeklyReportCard />
 
       <View style={styles.infoBox}>
         <InfoRow label="학습 목표" value={goal ? (GOAL_LABEL[goal] ?? goal) : '미설정'} />
@@ -93,7 +96,7 @@ export default function Profile() {
       <Pressable style={styles.signOut} onPress={handleSignOut}>
         <Text style={styles.signOutText}>로그아웃</Text>
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -119,7 +122,8 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.canvas, padding: 24, paddingTop: 72 },
+  container: { flex: 1, backgroundColor: colors.canvas },
+  content: { flexGrow: 1, padding: 24, paddingTop: 72 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   who: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   email: { color: colors.ink, fontSize: 17, fontWeight: '800' },

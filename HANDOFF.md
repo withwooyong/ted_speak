@@ -1,35 +1,38 @@
 # Session Handoff — Ted Speak (TalkTed)
 
-> Last updated: 2026-06-13 (KST) · 세션 9
+> Last updated: 2026-06-13 (KST) · 세션 10
 > Branch: `main` (origin: github.com/withwooyong/ted_speak, private)
-> Latest commit: `73bfbab` - 세션 9 인수인계 갱신 · 직전 `464557e`(W5b) · **origin/main 동기화 완료**(73bfbab 푸시됨)
+> Latest commit: 세션 10 W6 **커밋 대기** · 직전 origin/main `e23467d`(세션 9 인수인계 정정)
 
 ## Current Status
 
-세션 9에서 **Phase 2 W5b 레슨 세션 히스토리 + 레슨 교정 저장**을 일반 ted-run 풀 파이프라인으로 완료(커밋 `464557e`).
+세션 10에서 **Phase 2 W6 주간 스피킹 리포트**를 일반 ted-run 풀 파이프라인으로 완료(커밋 대기).
 
-W5는 히스토리를 **튜터 세션만** 다뤘다(정직한 최소). W5b는 같은 읽기 패턴을 **레슨에 확장** —
-`lesson_sessions`/`conversation_turns`의 기존 본인 select RLS를 재사용해 **스키마 변경 0·신규 RPC 0**으로
-`ProgressRepo`에 `listSessions`/`getSession`/`getSessionTurns`만 추가했다. 대화 기록 화면은 순수 헬퍼
-`mergeHistory(tutor, lesson)`로 레슨·튜터를 **시간순 통합 목록**(종류 배지)으로 합치고, 상세는
-`?kind=lesson|tutor`로 저장소를 분기한다(타인 id는 RLS가 0행 → null, 튜터와 동일한 IDOR 방어).
-레슨 대화 교정도 `useSaveExpression`(튜터·히스토리 공용)을 `ConversationStep`(선택적 props, 미주입 시
-회귀 0)에 연결했다. mock 모드는 완료 세션을 별도 `history` 맵에 보존(`getOrCreateSession`은 활성만
-재개)해 웹/E2E 히스토리를 지원한다(ADR-0011 부록).
+W5/W5b의 "기존 select RLS 재사용 + 순수 집계" 패턴을 한 번 더 연장 — 프로필 탭에 **최근 7일 리포트
+카드**(발화 시간·완료 레슨 수·교정 TOP5)를 얹었다. **스키마 변경 0·신규 RPC 0**: `ProgressRepo`에
+`listProgress()`(기존 "본인 진행도 조회" select RLS 재사용 — `user_progress`의 completed_at·
+speaking_seconds·score 읽기)만 추가하고, 집계는 순수 `weekly-report.ts`(`sumSpeakingSeconds`·
+`countCompletedLessons`·`topCorrections`·`collectWeeklyReport`)로 했다. 카드는 TanStack Query
+(`['weekly-report']`)로 로드하고 프로필 포커스 시 invalidate(탭 마운트 유지 대응).
 
-vitest **419**(400→+19), 커버리지 95.43/84.81/97.89/97.64(게이트 80), E2E tutor **15/15**·mock **33/33** 회귀 무변경.
+**정직성(ADR-0010 선례)**: 세 지표 모두 클라가 위조 불가한 서버 측 값만 — 발화는 레슨
+speaking_seconds(완료 적재·불변) + 완료 튜터 duration(서버 RPC 산정, 진행 중 제외), 완료 수는
+user_progress 행수(PK라 레슨당 1행), 교정은 기간 내 턴 corrections 빈도. **의도된 한계**: 레슨 발화는
+최초 완료분만 집계, 기간은 rolling 7일(월요일 빈 카드 회피), 교정 턴은 started_at 필터(ADR-0011 W6 부록).
 
-코드 측은 P1+P1.5+W1+W2+W3+W4+W5+W5b 완료. 남은 건 실기기 검증·U11 OAuth·라이브 전송(dev build)·W6~다.
+vitest **446**(419→+27), 커버리지 95.61/85.03/98.11/97.79(게이트 80), E2E mock **34/34**(S8 주간 카드
+추가)·tutor **15/15** 회귀 무변경.
 
-## Completed This Session (세션 9)
+코드 측은 P1+P1.5+W1+W2+W3+W4+W5+W5b+W6 완료. 남은 건 실기기 검증·U11 OAuth·라이브 전송(dev build)·W7~다.
+
+## Completed This Session (세션 10)
 
 | # | Task | Files |
 |---|------|-------|
-| 1 | **저장소(레슨 히스토리 읽기)** — listSessions/getSession/getSessionTurns(Mock+Supabase), Mock 완료 세션 보존(history 맵·startedAtMs), corrections 방어 변환 | apps/mobile/src/lib/progress-repo.ts |
-| 2 | **통합 집계(순수)** — mergeHistory(tutor, lesson) 종류 태깅·시간순 병합, HistoryItem 합집합 | apps/mobile/src/lib/history.ts(신규) |
-| 3 | **UI(통합 목록·kind 라우팅)** — 대화 기록 레슨·튜터 시간순 통합(종류 배지), 상세 ?kind 분기·제목 해석(lessonTitle), 교정 없는 세션 힌트 미노출 | apps/mobile/src/app/history/index.tsx·[id].tsx |
-| 4 | **레슨 교정 저장** — ConversationStep 선택적 props(onSaveCorrection/isSaved), lesson/[id]에 useSaveExpression 연결 | apps/mobile/src/components/lesson/ConversationStep.tsx, apps/mobile/src/app/lesson/[id].tsx |
-| 5 | **테스트·문서** — progress-repo +14·history +6 테스트, vitest.config coverage.include(history.ts), ADR-0011 부록, 작업계획서, p2-w5-history §5 해소 | apps/mobile/test/progress-repo.test.ts, apps/mobile/test/history.test.ts(신규), vitest.config.ts, docs/adr/ADR-0011-*.md, docs/plans/p2-w5b-lesson-history.md(신규), docs/plans/p2-w5-history.md |
+| 1 | **저장소(주간 진행 읽기)** — listProgress(Mock+Supabase, 기존 select RLS 재사용), Mock progress 모델을 `{completedAt,speakingSeconds,score}` 레코드로 확장·first-write-wins(서버 PK 패리티)·구 문자열 포맷 정규화 | apps/mobile/src/lib/progress-repo.ts |
+| 2 | **주간 집계(순수)** — weekStartMs/isWithinWeek/sumSpeakingSeconds/countCompletedLessons/topCorrections(빈도·정규화 dedupe·동률 안정)/buildWeeklyReport + 저장소 주입 통합 `collectWeeklyReport`(N+1 기간 가드) | apps/mobile/src/lib/weekly-report.ts(신규) |
+| 3 | **UI(주간 카드)** — 프로필 "최근 7일" 카드(발화 분·완료 레슨·교정 TOP5 빈도·빈 상태), TanStack Query+포커스 invalidate, 토큰만. 프로필 ScrollView 전환(카드 높이 대응) | apps/mobile/src/components/profile/WeeklyReportCard.tsx(신규), apps/mobile/src/app/(tabs)/profile.tsx |
+| 4 | **테스트·문서** — weekly-report 23(순수+collect)·progress-repo +5 테스트, vitest.config coverage.include(weekly-report.ts), E2E mock S8 주간 카드, ADR-0011 W6 부록, 작업계획서, p2-tutor §2 W6 완료 | apps/mobile/test/weekly-report.test.ts(신규), apps/mobile/test/progress-repo.test.ts, vitest.config.ts, e2e/mock-flow.spec.mjs, docs/adr/ADR-0011-*.md, docs/plans/p2-w6-weekly-report.md(신규), docs/plans/p2-tutor.md |
 
 ## In Progress / Pending
 
@@ -40,7 +43,7 @@ vitest **419**(400→+19), 커버리지 95.43/84.81/97.89/97.64(게이트 80), E
 | 3 | U11 Google/Apple OAuth | ⬜ 준비 완료 | 설계·준비: `docs/plans/u11-oauth-prep.md`(네이티브 ID 토큰 방식). 착수 전제: Apple Developer(구매 예정)·번들 ID·호스팅 Supabase·EAS dev build |
 | 4 | 호스팅 Supabase 연결 | 🔴 사용자 액션 | 프로젝트 생성 → `supabase link` + `db push`(마이그레이션 5건) → EAS env |
 | 5 | **W4 발음 후속(Azure)** | ⬜ 이월 | 진짜 음소·강세·억양 평가는 Azure Speech(또는 더 신뢰 가능한 미래 오디오 모델) 도입 시. `PronunciationAssessor` Azure 구현(seam 기정의) + `pronunciation_attempts` 테이블(보안 민감) 추가. ADR-0010 |
-| 6 | **Phase 2 W6** | 🟢 코드 착수 가능 | 주간 스피킹 리포트 — 이제 **레슨+튜터 `listSessions()` 통합 집계 재사용**(W5b 완료), 교정 TOP5는 saved_expressions/턴 corrections 집계 (`docs/plans/p2-tutor.md`). 프리토킹/롤플레이 분리 필요 시 `tutor_sessions.kind` 도입(보안 민감) |
+| 6 | ~~Phase 2 W6~~ | ✅ 완료(세션 10) | 주간 스피킹 리포트 — `listProgress()`+순수 `weekly-report.ts`, 프로필 "최근 7일" 카드. 후속: 레슨 재복습 발화 비정규화·교정 집계 N+1 제거·전주 대비 추세(`docs/plans/p2-w6-weekly-report.md` §5, Phase 3) |
 | 7 | 출시 전 Edge Function 프록시 | ⬜ P2 W7 | dev는 EXPO_PUBLIC_OPENAI_API_KEY, prod는 음성 비활성(ADR-0005 §6) |
 | 8 | **레슨 히스토리 메타 풍부화** | ⬜ 이월(W5b 후속) | 레슨 카드는 현재 상태(완료/진행 중)만 — 완료 점수(user_progress 조인)·발화시간·턴수는 비정규화 컬럼(보안 민감 스키마 변경) 또는 조인 추가 시점에. Phase 3 학습 정착과 함께 |
 
@@ -98,17 +101,21 @@ vitest **419**(400→+19), 커버리지 95.43/84.81/97.89/97.64(게이트 80), E
 - gpt-4o-audio-preview는 이 계정에서 미접근(404) — 후속 오디오 LLM 검토 시 `gpt-audio`/`gpt-audio-mini` 사용
 - **레슨 히스토리 카드 메타는 상태(완료/진행 중)만** — 발화시간·턴수가 lesson_sessions에 비정규화돼
   있지 않아 목록 N+1 회피(상세는 전체 턴 재생). 풍부화는 이월(In Progress #8)
+- **주간 리포트(W6) 의도된 한계**: ① 레슨 발화 시간은 최초 완료분만 집계(user_progress 레슨당 1행 —
+  재복습 발화 미적재, 튜터는 매 세션 누적) ② 교정 TOP5는 기간 내 세션 턴 N+1 조회(주간 세션 수 적어
+  수용, 비정규화는 후속) ③ 기간은 rolling 7일. 모두 ADR-0011 W6 부록에 문서화. 풍부화는 Phase 3
 
 ## Context for Next Session
 
 - **사용자 목표**: PLAN.md(v0.3) 기반 Speak 스타일 AI 영어 스피킹 앱. 품질 우선(D10), `/ted-run` 파이프라인, 프로토타입(prototype/index.html)이 UX 스펙
-- **다음 작업 후보**: ① **W6 주간 리포트**(이제 레슨+튜터 `listSessions()` 통합 집계 재사용 — 코드 착수 가능, 가장 자연스러운 다음 수) ② 라이브 전송(EAS dev build + react-native-webrtc, ADR-0008·0009 이월) ③ 실기기 검증(체크리스트) → 지연 ADR-0003 반영 ④ U11 OAuth 전제 충족 후 착수 ⑤ W4 발음 후속(Azure 음소평가 — PronunciationAssessor seam에 드롭인, ADR-0010) ⑥ 레슨 히스토리 메타 풍부화(점수 조인·비정규화, Phase 3)
+- **다음 작업 후보**(W6 완료): ① 라이브 전송(EAS dev build + react-native-webrtc, ADR-0008·0009 이월 — 사용자 액션 전제) ② 실기기 검증(체크리스트) → 지연 ADR-0003 반영 ③ U11 OAuth 전제 충족 후 착수 ④ W4 발음 후속(Azure 음소평가 — PronunciationAssessor seam에 드롭인, ADR-0010) ⑤ W7 출시 전 Edge Function 프록시(ADR-0005 §6) ⑥ 후속 풍부화(레슨 재복습 발화 비정규화·주간 추세·레슨 히스토리 점수 조인, Phase 3)
 - **로컬 개발**: `supabase start`(553xx) → `supabase db reset`(마이그레이션 5건+시드 6레슨) → `npx tsx scripts/verify-rls.mts`(64케이스). 앱: `npm run mobile`, AI는 .env에 EXPO_PUBLIC_OPENAI_API_KEY(dev 전용)
 - **스파이크**: `npm run spike -w @ted-speak/ai`(turn-based 1턴), `spike:realtime`(Realtime), `spike:pron`(발음) — 모두 OPENAI_API_KEY 필요. ADR-0003·0007·0010 근거 데이터. out/는 gitignore
 - **E2E**: `e2e/*.spec.mjs` — expo web(:8082, `cd apps/mobile && npx expo start --web --port 8082`)+Playwright. `node e2e/tutor-flow.spec.mjs`(튜터 15/15), `node e2e/mock-flow.spec.mjs`(레슨 동선 33/0/1, supabase 모드 미기동 시 S9~11 스킵). 스크린샷·results는 gitignore
+- **주간 리포트 아키텍처(W6)**: `progress-repo.listProgress()`(user_progress 읽기, 기존 select RLS 재사용) + 순수 `weekly-report.ts`(`collectWeeklyReport`가 저장소 주입받아 기간 내 세션 턴만 조회 — N+1 가드). 프로필 `components/profile/WeeklyReportCard.tsx`는 `['weekly-report']` TanStack Query + 포커스 invalidate. Mock `progress`는 레코드+first-write-wins(서버 PK 패리티). 정직성·한계는 ADR-0011 W6 부록
 - **히스토리·저장 아키텍처(W5+W5b)**: 튜터는 `tutor-repo`, 레슨은 `progress-repo`의 읽기 메서드(`listSessions`/`getSession`/`getSessionTurns` — 둘 다 기존 RLS select 재사용, 신규 RPC 0). 대화 기록 화면은 순수 `history.ts`의 `mergeHistory(tutor, lesson)`로 시간순 통합(`app/history/index.tsx`), 상세는 `?kind=lesson|tutor`로 저장소 분기(`app/history/[id].tsx`). 제목 해석(`sessionTitle`/`lessonTitle`)은 content 의존이라 화면 레이어. 저장은 `saved_expressions`+`saved-repo`+`useSaveExpression` 훅(튜터·히스토리·**레슨 ConversationStep** 공용, 저장소는 출처 무관). 신규 화면 비동기 로드는 TanStack Query(effect 동기 setState 회피)
 - **튜터 아키텍처(W2+W3)**: 순수 코어(`tutor-core.ts`)+저장소(`tutor-repo.ts`)+전송 seam(`tutor-transport.ts`, Mock/Roleplay/Realtime이월)+팩토리(`tutor.ts`)+UI(`(tabs)/tutor.tsx`). 완료는 `complete_tutor_session` RPC 필수. 롤플레이 콘텐츠는 `content/roleplay/*.json`(zod, validate:content 가드)
 - **발음 아키텍처(W4)**: 순수 코어(`packages/shared/src/pronunciation.ts`, `PronunciationAssessor` seam)+STT(`transcribeDetailed`)+어댑터+UI(DrillStep 라벨 reframe·clarity 조언). Azure 음소평가는 seam에 드롭인+`pronunciation_attempts` 테이블 추가 지점(ADR-0010)
 - **제약·선호**: 커밋 한글, **푸시는 명시 요청 시에만**, StyleSheet+토큰만(인라인 hex 금지), zod z.infer 단일 출처, 새 컬럼은 grant 화이트리스트 검토, 스키마 변경은 보안 민감 ted-run. **품질 우선 — 가짜 점수/지표 출시 안 함(ADR-0010 선례)**. 신규 화면 비동기 로드는 TanStack Query 패턴(수동 fetch-in-effect는 lint 차단). **Expo 타입드 라우트**: 새 라우트 추가 시 `.expo/types/router.d.ts` stale → typecheck 실패, expo web 한 번 띄워 번들(curl)하면 typegen 재생성
 - **테스트 인프라**: vitest 419개·커버리지 95.43/84.81/97.89/97.64%(게이트 80). 신규 순수 모듈은 `packages/**/src/**` 글롭으로 자동 포함(app lib는 vitest.config.ts coverage.include에 개별 등록 — history.ts 등록됨). `@ted-speak/shared` alias 제거 금지(`@ted-speak/content`·`@/`는 vitest alias 없음 → 테스트 대상 lib는 그 둘을 런타임 import 금지, 타입 only는 가능)
-- **미커밋 작업**: 없음 — 세션 9 W5b 커밋(`464557e`) + 인수인계(`73bfbab`) 모두 **origin/main에 푸시 완료**
+- **미커밋 작업**: 세션 10 W6 변경(저장소·집계·UI·테스트·문서) **커밋 대기** — 푸시는 사용자 명시 요청 시에만
