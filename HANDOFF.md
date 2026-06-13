@@ -2,7 +2,7 @@
 
 > Last updated: 2026-06-13 (KST) · 세션 8
 > Branch: `main` (origin: github.com/withwooyong/ted_speak, private)
-> Latest commit: (세션 8 커밋 대기 — W5) · 직전 커밋 `52db5c3`(W4) · 직전 푸시 `59cfb74`(W2)
+> Latest commit: `40868af` - W5 히스토리+표현저장(커밋 완료, **푸시 미요청**) · 직전 커밋 `52db5c3`(W4) · 직전 푸시 `59cfb74`(W2)
 
 ## Current Status
 
