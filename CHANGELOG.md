@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 2026-06-13 (세션 5) — Phase 2 W2 프리토킹 기반 (보안 민감 ted-run)
+## 2026-06-13 (세션 5) — Phase 2 W2 프리토킹 기반 (보안 민감 ted-run) `59cfb74`
 
 전략: **기반부터** — Expo Go에서 완결 가능한 토대(스키마/RLS·세션 로직·UI)를 전송 인터페이스 뒤에
 구현. 라이브 Realtime WebRTC 전송·실기기 검증은 dev build 후속으로 이월(ADR-0008).
@@ -28,7 +28,7 @@
 - 검증: 테스트 272개(커버리지 93.4/86.1/96.5%), E2E supabase-flow 13 PASS(재로그인 온보딩 스킵·DB 반영·PII 정리 신규 S12 포함)
 - 문서: ADR-0006(하이드레이트·신뢰 경계·clamp), 실기기 검증 체크리스트, U11 OAuth 준비 문서, Phase 2 계획서 초안 (ADR-0005 §한계 2건 해소 포인터)
 
-### Phase 2 W1 Realtime 스파이크 + 실측 → ADR-0007 승인
+### Phase 2 W1 Realtime 스파이크 + 실측 → ADR-0007 승인 `add6d52` (세션 5 커밋)
 
 - `packages/ai/spike/realtime.mts` — OpenAI Realtime WebSocket 1세션 E2E. 입력은 TTS pcm(24kHz=Realtime 입력 포맷) 자가 합성, 첫 응답 지연(commit→첫 오디오)·barge-in(response.cancel 확정)·턴당 비용(usage×단가)을 3회 중앙값 측정. preview↔GA 스키마·이벤트명 차이 견고 흡수, 모델은 `REALTIME_MODEL` 오버라이드
 - `ws`/`@types/ws`를 `@ted-speak/ai` devDependency로 선언, `spike:realtime` 스크립트 추가

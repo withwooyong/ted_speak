@@ -2,19 +2,18 @@
 
 > Last updated: 2026-06-13 (KST) · 세션 5
 > Branch: `main` (origin: github.com/withwooyong/ted_speak, private)
-> Latest commit: `add6d52` - W1 Realtime 실측·ADR-0007 승인 (푸시 완료) · **미커밋: W2 프리토킹 기반**
+> Latest commit: `59cfb74` - W2 프리토킹 기반 (커밋·푸시 완료) · **미커밋 없음**
 
 ## Current Status
 
-세션 5에서 W1 Realtime 실측(커밋·푸시 `add6d52`)에 이어 **W2 프리토킹 기반을 보안 민감 ted-run
-풀 파이프라인으로 완료**했다(미커밋).
+세션 5에서 두 작업을 보안 민감 ted-run 풀 파이프라인으로 완료·푸시했다.
 
 1. **W1 Realtime 실측**(커밋·푸시 `add6d52`) — gpt-realtime GA 첫 응답 0.63s·barge-in 175ms.
    ADR-0007 승인(AI 튜터 Realtime, 레슨 turn-based).
-2. **W2 프리토킹 기반**(미커밋) — **기반부터** 전략: Expo Go에서 완결 가능한 토대(스키마/RLS·세션
-   상태머신·일일 캡·UI)를 `TutorTransport` 인터페이스 뒤에 구현. 목 전송 + 텍스트 미리보기로 동선
-   완결. **라이브 WebRTC 전송·실기기는 dev build 후속 이월**(ADR-0008). 적대적 보안 리뷰가 잡은
-   일일 캡 위조(HIGH)를 서버 권위 RPC로 해소(RLS 52/52). vitest 327·E2E tutor 6/6.
+2. **W2 프리토킹 기반**(커밋·푸시 `59cfb74`) — **기반부터** 전략: Expo Go에서 완결 가능한 토대
+   (스키마/RLS·세션 상태머신·일일 캡·UI)를 `TutorTransport` 인터페이스 뒤에 구현. 목 전송 + 텍스트
+   미리보기로 동선 완결. **라이브 WebRTC 전송·실기기는 dev build 후속 이월**(ADR-0008). 적대적 보안
+   리뷰가 잡은 일일 캡 위조(HIGH)를 서버 권위 RPC로 해소(RLS 52/52). vitest 327·E2E tutor 6/6.
 
 코드 측은 P1+P1.5+W1+W2 기반 완료. 남은 건 실기기 검증·U11 OAuth·W2 라이브 전송(dev build)·W3~다.
 
@@ -23,23 +22,22 @@
 | # | Task | Commit | Files |
 |---|------|--------|-------|
 | 1 | **W1 Realtime 실측** — gpt-realtime GA 첫 응답 0.63s·barge-in 175ms·턴당 ~$0.006–0.010, 스파이크 버그 3건 수정, ADR-0007 승인 | `add6d52` | packages/ai/spike/realtime.mts, package.json, docs/adr/ADR-0007-*.md, docs/plans/p2-tutor.md |
-| 2 | **W2 스키마/RLS**(보안) — tutor_sessions/tutor_turns, 컬럼 lockdown + `complete_tutor_session` 서버 권위 RPC(캡 위조 차단), RLS 52/52 | 미커밋 | supabase/migrations/20260613100000_tutor_sessions.sql(신규), scripts/verify-rls.mts |
-| 3 | **W2 세션 코어/저장소**(순수) — tutor-core(상태머신·5분 cap·6턴 윈도우·요약), tutor-repo(mock/supabase·일일 캡·미완료 우회 차단) | 미커밋 | apps/mobile/src/lib/tutor-core.ts·tutor-repo.ts·tutor.ts(신규) |
-| 4 | **W2 전송 계층** — TutorTransport 인터페이스 + MockTutorTransport(텍스트 미리보기) + RealtimeTutorTransport 이월 스텁 | 미커밋 | apps/mobile/src/lib/tutor-transport.ts(신규) |
-| 5 | **W2 UI** — tutor 탭 주제→세션→요약, 일일 캡 잠금, 텍스트 폴백 | 미커밋 | apps/mobile/src/app/(tabs)/tutor.tsx |
-| 6 | **W2 검증** — vitest 327(커버리지 등록), E2E tutor-flow 6/6, ADR-0008, 작업계획서 | 미커밋 | apps/mobile/test/tutor-*.test.ts(신규), e2e/tutor-flow.spec.mjs(신규), vitest.config.ts, docs/adr/ADR-0008-*.md(신규), docs/plans/p2-w2-pretalk.md(신규) |
+| 2 | **W2 스키마/RLS**(보안) — tutor_sessions/tutor_turns, 컬럼 lockdown + `complete_tutor_session` 서버 권위 RPC(캡 위조 차단), RLS 52/52 | `59cfb74` | supabase/migrations/20260613100000_tutor_sessions.sql(신규), scripts/verify-rls.mts |
+| 3 | **W2 세션 코어/저장소**(순수) — tutor-core(상태머신·5분 cap·6턴 윈도우·요약), tutor-repo(mock/supabase·일일 캡·미완료 우회 차단) | `59cfb74` | apps/mobile/src/lib/tutor-core.ts·tutor-repo.ts·tutor.ts(신규) |
+| 4 | **W2 전송 계층** — TutorTransport 인터페이스 + MockTutorTransport(텍스트 미리보기) + RealtimeTutorTransport 이월 스텁 | `59cfb74` | apps/mobile/src/lib/tutor-transport.ts(신규) |
+| 5 | **W2 UI** — tutor 탭 주제→세션→요약, 일일 캡 잠금, 텍스트 폴백 | `59cfb74` | apps/mobile/src/app/(tabs)/tutor.tsx |
+| 6 | **W2 검증** — vitest 327(커버리지 등록), E2E tutor-flow 6/6, ADR-0008, 작업계획서 | `59cfb74` | apps/mobile/test/tutor-*.test.ts(신규), e2e/tutor-flow.spec.mjs(신규), vitest.config.ts, docs/adr/ADR-0008-*.md(신규), docs/plans/p2-w2-pretalk.md(신규) |
 
 ## In Progress / Pending
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | **W1 Realtime 실측** | ✅ 완료 | gpt-realtime GA 실측 — 첫 응답 0.63s·barge-in 175ms·턴당 ~$0.006–0.010. **ADR-0007 승인**(AI 튜터 Realtime, 레슨 turn-based). 미커밋 — 이번 세션 커밋 대상 |
+| 1 | **W2 라이브 전송**(이월) | ⬜ dev build 전제 | `RealtimeTutorTransport`(WebRTC) 구현 + EAS dev build + react-native-webrtc. 실마이크 스트리밍·실기기 5분 완주·시나리오별 비용 재측정(ADR-0008 §이월) |
 | 2 | 실기기 검증 (P1 완료 정의 ①②③) | 🔴 사용자 액션 | Xcode 미설치 → Expo Go. 체크리스트: `docs/checklists/p1-device-verification.md`. 턴 지연 중앙값 측정 → ADR-0003 갱신 |
 | 3 | U11 Google/Apple OAuth | ⬜ 준비 완료 | 설계·준비: `docs/plans/u11-oauth-prep.md`(네이티브 ID 토큰 방식). 착수 전제: Apple Developer(구매 예정)·번들 ID·호스팅 Supabase·EAS dev build |
 | 4 | 호스팅 Supabase 연결 | 🔴 사용자 액션 | 프로젝트 생성 → `supabase link` + `db push`(마이그레이션 4건) → EAS env |
-| 5 | **W2 라이브 전송**(이월) | ⬜ dev build 전제 | `RealtimeTutorTransport`(WebRTC) 구현 + EAS dev build + react-native-webrtc. 실마이크 스트리밍·실기기 5분 완주·시나리오별 비용 재측정(ADR-0008 §이월) |
-| 6 | **Phase 2 W3~** | ⬜ 계획 | W3 롤플레이·W4 발음·W5 히스토리·W6 주간 리포트 (`docs/plans/p2-tutor.md`). W2 코어·전송 인터페이스 재사용 |
-| 7 | 출시 전 Edge Function 프록시 | ⬜ P2 W7 | dev는 EXPO_PUBLIC_OPENAI_API_KEY, prod는 음성 비활성(ADR-0005 §6) |
+| 5 | **Phase 2 W3~** | ⬜ 계획 | W3 롤플레이·W4 발음·W5 히스토리·W6 주간 리포트 (`docs/plans/p2-tutor.md`). W2 코어·전송 인터페이스 재사용 |
+| 6 | 출시 전 Edge Function 프록시 | ⬜ P2 W7 | dev는 EXPO_PUBLIC_OPENAI_API_KEY, prod는 음성 비활성(ADR-0005 §6) |
 
 ## Key Decisions Made
 
@@ -86,4 +84,4 @@
 - **W2 아키텍처**: 순수 코어(`tutor-core.ts`)+저장소(`tutor-repo.ts`)+전송 인터페이스(`tutor-transport.ts`)+팩토리(`tutor.ts`)+UI(`(tabs)/tutor.tsx`). 라이브 전송만 교체하면 됨(seam). 완료는 `complete_tutor_session` RPC 필수(직접 update 금지)
 - **제약·선호**: 커밋 한글, **푸시는 명시 요청 시에만**, StyleSheet+토큰만(인라인 hex 금지), zod z.infer 단일 출처, 새 컬럼은 grant 화이트리스트 검토, 스키마 변경은 보안 민감 ted-run
 - **테스트 인프라**: vitest 327개·커버리지 94.3/86.4/96.9%(게이트 80). 신규 순수 모듈은 vitest.config.ts coverage.include에 등록 필요. `@ted-speak/shared` alias 제거 금지
-- **미커밋 작업**: W2 프리토킹 기반(tutor_sessions 마이그레이션·tutor-{core,repo,transport,}.ts·tutor.tsx·테스트·verify-rls·ADR-0008·p2-w2-pretalk·CHANGELOG·HANDOFF·vitest.config). 이번 세션 커밋 대상 — 푸시는 명시 요청 시에만
+- **미커밋 작업**: 없음 — 이번 세션 작업 전부 커밋·푸시 완료(`add6d52` W1, `59cfb74` W2). 작업 트리 클린
