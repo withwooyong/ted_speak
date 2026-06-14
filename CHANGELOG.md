@@ -1,5 +1,24 @@
 # CHANGELOG
 
+## 2026-06-13 (세션 10) — Phase 2 W6 주간 스피킹 리포트 (일반 ted-run, 커밋 `595cf9f`)
+
+전략: **W5/W5b의 "기존 select RLS 재사용 + 순수 집계" 패턴을 한 번 더 연장** — 스키마 변경 0·신규 RPC 0.
+
+- **주간 진행 읽기**(`progress-repo.ts`): `listProgress()` 추가(Mock+Supabase) — 기존 "본인 진행도 조회"
+  select RLS 재사용(user_progress의 completed_at·speaking_seconds·score). Mock `progress`를
+  `{completedAt,speakingSeconds,score}` 레코드로 확장 + **first-write-wins**(서버 PK (user_id,lesson_id)
+  불변·트리거 1회 누적 패리티) + 구 문자열 포맷 읽기 시 정규화.
+- **주간 집계**(`weekly-report.ts` 신규): 순수 함수 `weekStartMs`/`isWithinWeek`/`sumSpeakingSeconds`/
+  `countCompletedLessons`/`topCorrections`(빈도·정규화 dedupe·동률 안정)/`buildWeeklyReport` +
+  저장소 주입 통합 `collectWeeklyReport`(기간 내 세션만 턴 조회하는 N+1 가드).
+- **프로필 UI**: "최근 7일" 카드(`WeeklyReportCard` 신규) — 발화 분·완료 레슨·교정 TOP5 빈도·빈 상태.
+  `['weekly-report']` TanStack Query + 포커스 invalidate(탭 마운트 유지 대응). 프로필 ScrollView 전환.
+- **정직성(ADR-0010 선례)**: 세 지표 모두 클라가 위조 불가한 서버 측 값만 집계. 의도된 한계(레슨 발화는
+  최초 완료분만·rolling 7일·교정 턴 started_at 필터)는 ADR-0011 W6 부록에 문서화.
+- **검증**: vitest **446**(419→+27, 커버리지 95.61/85.03/98.11/97.79), E2E mock **34/34**(S8 주간 카드)·
+  tutor 15/15 회귀. 리뷰 H1(stale 캐시)·M1(ScrollView)·M2(collect 테스트)·L1·L2 반영. 근거: docs/plans/p2-w6-weekly-report.md
+- 이월: 레슨 재복습 발화 비정규화·교정 집계 N+1 제거·전주 대비 추세는 Phase 3
+
 ## 2026-06-13 (세션 9) — Phase 2 W5b 레슨 히스토리 (일반 ted-run, 커밋 `464557e`)
 
 전략: **W5 튜터 히스토리와 동일한 읽기 패턴을 레슨에 확장** — 스키마 변경 0(기존 RLS select 재사용).

@@ -2,11 +2,11 @@
 
 > Last updated: 2026-06-13 (KST) · 세션 10
 > Branch: `main` (origin: github.com/withwooyong/ted_speak, private)
-> Latest commit: 세션 10 W6 **커밋 대기** · 직전 origin/main `e23467d`(세션 9 인수인계 정정)
+> Latest commit: `595cf9f`(세션 10 W6) · 직전 origin/main `e23467d`(세션 9 인수인계 정정) · **푸시 예정**
 
 ## Current Status
 
-세션 10에서 **Phase 2 W6 주간 스피킹 리포트**를 일반 ted-run 풀 파이프라인으로 완료(커밋 대기).
+세션 10에서 **Phase 2 W6 주간 스피킹 리포트**를 일반 ted-run 풀 파이프라인으로 완료(커밋 `595cf9f`).
 
 W5/W5b의 "기존 select RLS 재사용 + 순수 집계" 패턴을 한 번 더 연장 — 프로필 탭에 **최근 7일 리포트
 카드**(발화 시간·완료 레슨 수·교정 TOP5)를 얹었다. **스키마 변경 0·신규 RPC 0**: `ProgressRepo`에
@@ -118,4 +118,4 @@ vitest **446**(419→+27), 커버리지 95.61/85.03/98.11/97.79(게이트 80), E
 - **발음 아키텍처(W4)**: 순수 코어(`packages/shared/src/pronunciation.ts`, `PronunciationAssessor` seam)+STT(`transcribeDetailed`)+어댑터+UI(DrillStep 라벨 reframe·clarity 조언). Azure 음소평가는 seam에 드롭인+`pronunciation_attempts` 테이블 추가 지점(ADR-0010)
 - **제약·선호**: 커밋 한글, **푸시는 명시 요청 시에만**, StyleSheet+토큰만(인라인 hex 금지), zod z.infer 단일 출처, 새 컬럼은 grant 화이트리스트 검토, 스키마 변경은 보안 민감 ted-run. **품질 우선 — 가짜 점수/지표 출시 안 함(ADR-0010 선례)**. 신규 화면 비동기 로드는 TanStack Query 패턴(수동 fetch-in-effect는 lint 차단). **Expo 타입드 라우트**: 새 라우트 추가 시 `.expo/types/router.d.ts` stale → typecheck 실패, expo web 한 번 띄워 번들(curl)하면 typegen 재생성
 - **테스트 인프라**: vitest 419개·커버리지 95.43/84.81/97.89/97.64%(게이트 80). 신규 순수 모듈은 `packages/**/src/**` 글롭으로 자동 포함(app lib는 vitest.config.ts coverage.include에 개별 등록 — history.ts 등록됨). `@ted-speak/shared` alias 제거 금지(`@ted-speak/content`·`@/`는 vitest alias 없음 → 테스트 대상 lib는 그 둘을 런타임 import 금지, 타입 only는 가능)
-- **미커밋 작업**: 세션 10 W6 변경(저장소·집계·UI·테스트·문서) **커밋 대기** — 푸시는 사용자 명시 요청 시에만
+- **미커밋 작업**: 없음 — 세션 10 W6(`595cf9f`) + 인수인계(CHANGELOG·HANDOFF) 커밋 후 origin/main 푸시 완료
