@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-06-15 (세션 11) — 앱 실행 검증 (코드 변경 없음)
+
+목적: 실제 앱을 띄워 동작 확인. **코드/스키마 변경 없음** — 검증·환경 점검 + 인수인계 갱신만.
+
+- **웹(react-native-web) 구동 확인**: `expo start --web`(:8082) + Playwright로 전 플로우 정상 —
+  로그인 → **Dev Mock 로그인** → 온보딩 4단계(목표·레벨·목표량·마이크) → 홈(XP·레슨 목록 6개·하루 1개
+  소프트 제한) → 레슨 상세(LEARN, 표현 카드). **콘솔/페이지 에러 0**. AI 키 미설정이라 레슨 상단 "AI 기능
+  사용하려면 키 설정" 배너 노출(의도된 fallback), Supabase 미설정이라 Dev Mock Auth 부팅.
+- **Expo Go 실기기(안드로이드) 차단 발견**: QR 스캔 시 **SDK 버전 불일치 오류** — 프로젝트는 Expo SDK 56
+  (RN 0.85.3·React 19.2)인데 Play 스토어 Expo Go가 SDK 56 미지원. **Expo Go 경로는 막힘**. 터널 모드
+  (`--tunnel`, @expo/ngrok 전역 설치)로 네트워크는 우회 가능하나 SDK 불일치는 동일.
+- **로컬 네이티브 실행 제약**: 맥에 **전체 Xcode 없음(Command Line Tools만)** + **Android SDK 없음** →
+  `expo run:ios`/`run:android` 불가, iOS 시뮬레이터·안드로이드 에뮬레이터 모두 부재.
+- **결론**: 네이티브/음성(마이크·STT/TTS·AI 대화) 검증은 **EAS development build**(실기기 APK, 클라우드
+  빌드라 로컬 설치 불필요 — 권장) 또는 Android Studio 설치 후 에뮬레이터가 필요. 빠른 화면/플로우 확인은
+  웹으로 충분. → In Progress #2(실기기 검증) 갱신.
+- 환경(레포 외): `@expo/ngrok` 전역 설치, 포트는 8081(ted_duolingo 점유) 회피해 8082(web)/8083(tunnel) 사용.
+
 ## 2026-06-13 (세션 10) — Phase 2 W6 주간 스피킹 리포트 (일반 ted-run, 커밋 `595cf9f`)
 
 전략: **W5/W5b의 "기존 select RLS 재사용 + 순수 집계" 패턴을 한 번 더 연장** — 스키마 변경 0·신규 RPC 0.

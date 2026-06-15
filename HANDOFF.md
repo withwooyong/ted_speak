@@ -1,12 +1,26 @@
 # Session Handoff — Ted Speak (TalkTed)
 
-> Last updated: 2026-06-13 (KST) · 세션 10
+> Last updated: 2026-06-15 (KST) · 세션 11
 > Branch: `main` (origin: github.com/withwooyong/ted_speak, private)
-> Latest commit: `595cf9f`(세션 10 W6) · 직전 origin/main `e23467d`(세션 9 인수인계 정정) · **푸시 예정**
+> Latest commit: 세션 11 인수인계(이 커밋) · 직전 origin/main `c05e894`(세션 10 인수인계) · **푸시 예정**
 
 ## Current Status
 
-세션 10에서 **Phase 2 W6 주간 스피킹 리포트**를 일반 ted-run 풀 파이프라인으로 완료(커밋 `595cf9f`).
+**세션 11은 앱 실행 검증 세션 — 코드/스키마 변경 없음**. 실제 앱을 띄워 동작을 확인했다.
+
+- **웹 구동 정상**: `expo start --web`(:8082)로 로그인 → Dev Mock → 온보딩 4단계 → 홈 → 레슨(LEARN)
+  전 플로우 동작, 콘솔/페이지 에러 0. AI 키·Supabase 미설정이라 안내 배너 + Dev Mock Auth(의도된 fallback).
+- **Expo Go(안드로이드 실기기) 차단**: 프로젝트 Expo **SDK 56**(RN 0.85.3·React 19.2)을 Play 스토어
+  Expo Go가 미지원 → **SDK 버전 불일치 오류**. Expo Go 경로 불가(터널로도 SDK 불일치는 동일).
+- **로컬 네이티브 불가**: 맥에 전체 Xcode 없음(CLT만)·Android SDK 없음 → `expo run:ios/android`·
+  iOS 시뮬레이터·안드로이드 에뮬레이터 모두 불가.
+- **결론**: 네이티브/음성 검증은 **EAS development build**(실기기 APK, 권장) 또는 Android Studio 필요.
+  빠른 화면/플로우 확인은 웹으로 충분. (상세: CHANGELOG 세션 11 / In Progress #2)
+
+---
+
+세션 10까지 코드 측 누적은 그대로 — **Phase 2 W6 주간 스피킹 리포트**를 일반 ted-run 풀 파이프라인으로
+완료(커밋 `595cf9f`).
 
 W5/W5b의 "기존 select RLS 재사용 + 순수 집계" 패턴을 한 번 더 연장 — 프로필 탭에 **최근 7일 리포트
 카드**(발화 시간·완료 레슨 수·교정 TOP5)를 얹었다. **스키마 변경 0·신규 RPC 0**: `ProgressRepo`에
@@ -39,7 +53,7 @@ vitest **446**(419→+27), 커버리지 95.61/85.03/98.11/97.79(게이트 80), E
 | # | Task | Status | Notes |
 |---|------|--------|-------|
 | 1 | **라이브 전송**(W2+W3 이월) | ⬜ dev build 전제 | `RealtimeTutorTransport`(WebRTC) 구현 + EAS dev build + react-native-webrtc. 실마이크 스트리밍·실기기 5분 완주·시나리오별 비용 재측정(ADR-0008). **롤플레이 목표 판정도 이때 모델 신호로 전환**(seam 계약 `metObjectiveIds` 기정의, ADR-0009) |
-| 2 | 실기기 검증 (P1 완료 정의 ①②③) | 🔴 사용자 액션 | Xcode 미설치 → Expo Go. 체크리스트: `docs/checklists/p1-device-verification.md`. 턴 지연 중앙값 측정 → ADR-0003 갱신 |
+| 2 | 실기기 검증 (P1 완료 정의 ①②③) | 🔴 사용자 액션 | **세션 11 발견: Expo Go 불가** — 프로젝트 SDK 56을 Play 스토어 Expo Go가 미지원(버전 불일치 오류). 로컬도 전체 Xcode·Android SDK 부재로 시뮬/에뮬 불가. **경로는 EAS development build(실기기 APK, 권장) 또는 Android Studio 에뮬레이터**. 그 후 체크리스트 `docs/checklists/p1-device-verification.md`로 턴 지연 중앙값 측정 → ADR-0003 갱신. 화면/플로우만이면 웹(:8082)으로 즉시 확인 가능 |
 | 3 | U11 Google/Apple OAuth | ⬜ 준비 완료 | 설계·준비: `docs/plans/u11-oauth-prep.md`(네이티브 ID 토큰 방식). 착수 전제: Apple Developer(구매 예정)·번들 ID·호스팅 Supabase·EAS dev build |
 | 4 | 호스팅 Supabase 연결 | 🔴 사용자 액션 | 프로젝트 생성 → `supabase link` + `db push`(마이그레이션 5건) → EAS env |
 | 5 | **W4 발음 후속(Azure)** | ⬜ 이월 | 진짜 음소·강세·억양 평가는 Azure Speech(또는 더 신뢰 가능한 미래 오디오 모델) 도입 시. `PronunciationAssessor` Azure 구현(seam 기정의) + `pronunciation_attempts` 테이블(보안 민감) 추가. ADR-0010 |
@@ -118,4 +132,5 @@ vitest **446**(419→+27), 커버리지 95.61/85.03/98.11/97.79(게이트 80), E
 - **발음 아키텍처(W4)**: 순수 코어(`packages/shared/src/pronunciation.ts`, `PronunciationAssessor` seam)+STT(`transcribeDetailed`)+어댑터+UI(DrillStep 라벨 reframe·clarity 조언). Azure 음소평가는 seam에 드롭인+`pronunciation_attempts` 테이블 추가 지점(ADR-0010)
 - **제약·선호**: 커밋 한글, **푸시는 명시 요청 시에만**, StyleSheet+토큰만(인라인 hex 금지), zod z.infer 단일 출처, 새 컬럼은 grant 화이트리스트 검토, 스키마 변경은 보안 민감 ted-run. **품질 우선 — 가짜 점수/지표 출시 안 함(ADR-0010 선례)**. 신규 화면 비동기 로드는 TanStack Query 패턴(수동 fetch-in-effect는 lint 차단). **Expo 타입드 라우트**: 새 라우트 추가 시 `.expo/types/router.d.ts` stale → typecheck 실패, expo web 한 번 띄워 번들(curl)하면 typegen 재생성
 - **테스트 인프라**: vitest 419개·커버리지 95.43/84.81/97.89/97.64%(게이트 80). 신규 순수 모듈은 `packages/**/src/**` 글롭으로 자동 포함(app lib는 vitest.config.ts coverage.include에 개별 등록 — history.ts 등록됨). `@ted-speak/shared` alias 제거 금지(`@ted-speak/content`·`@/`는 vitest alias 없음 → 테스트 대상 lib는 그 둘을 런타임 import 금지, 타입 only는 가능)
-- **미커밋 작업**: 없음 — 세션 10 W6(`595cf9f`) + 인수인계(CHANGELOG·HANDOFF) 커밋 후 origin/main 푸시 완료
+- **실행/검증 경로(세션 11 확정)**: ① **웹** — `cd apps/mobile && npx expo start --web --port 8082`(8081은 ted_duolingo 점유) → 로그인 화면 "Dev Mock 로그인"으로 전 플로우 확인 가능, 화면/UX 검증용. ② **Expo Go 불가** — SDK 56 미지원(버전 불일치). ③ **네이티브/음성** — EAS dev build(실기기 APK, 권장) 또는 Android Studio 에뮬레이터 필요. 맥엔 전체 Xcode·Android SDK 둘 다 없음(CLT만). 터널 모드는 `@expo/ngrok` 전역 설치돼 있음(`--tunnel`)
+- **미커밋 작업**: 없음 — 세션 11 인수인계(CHANGELOG·HANDOFF) 커밋이 이 세션 유일 변경(코드 변경 0). 직전까지 origin/main(`c05e894`) 동기화 완료
