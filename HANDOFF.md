@@ -2,7 +2,7 @@
 
 > Last updated: 2026-06-17 (KST) · 세션 12
 > Branch: `main` (origin: github.com/withwooyong/ted_speak, **public**)
-> Latest commit: 세션 12 repo 공개+시크릿 스캔(이 커밋) · 직전 origin/main `be482e4`(세션 11 인수인계) · **푸시 예정**
+> Latest commit: 세션 12 CI Node24 전환(`870ea45`) · repo 공개+시크릿 스캔(`cde95f0`) · 직전 origin/main `be482e4`(세션 11) · **이 커밋 푸시 예정**
 
 ## Current Status
 
@@ -45,6 +45,7 @@ vitest **446**(419→+27), 커버리지 95.61/85.03/98.11/97.79(게이트 80), E
 | 1 | **repo 공개 전환** — PRIVATE → PUBLIC (`gh repo edit --visibility public`) | (GitHub 설정) |
 | 2 | **시크릿 노출 점검** — 전체 히스토리 31커밋 gitleaks 스캔 → no leaks. 실제 키 0건, 검출 JWT는 Supabase 로컬 데모 키로 확인 | (검증) |
 | 3 | **gitleaks 도입** — 기본 룰셋+데모 키 allowlist, CI secrets 잡(전체 히스토리 스캔), 로컬 `npm run secrets:scan` | .gitleaks.toml(신규), .github/workflows/ci.yml, package.json |
+| 4 | **CI Node24 전환** — `secrets` 잡에 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` env(gitleaks-action Node20 deprecation 대비), Node24 정상 실행 확인 | .github/workflows/ci.yml |
 
 ## Completed (세션 10 — 직전 코드 작업: W6 주간 리포트)
 
@@ -140,5 +141,5 @@ vitest **446**(419→+27), 커버리지 95.61/85.03/98.11/97.79(게이트 80), E
 - **제약·선호**: 커밋 한글, **푸시는 명시 요청 시에만**, StyleSheet+토큰만(인라인 hex 금지), zod z.infer 단일 출처, 새 컬럼은 grant 화이트리스트 검토, 스키마 변경은 보안 민감 ted-run. **품질 우선 — 가짜 점수/지표 출시 안 함(ADR-0010 선례)**. 신규 화면 비동기 로드는 TanStack Query 패턴(수동 fetch-in-effect는 lint 차단). **Expo 타입드 라우트**: 새 라우트 추가 시 `.expo/types/router.d.ts` stale → typecheck 실패, expo web 한 번 띄워 번들(curl)하면 typegen 재생성
 - **테스트 인프라**: vitest 419개·커버리지 95.43/84.81/97.89/97.64%(게이트 80). 신규 순수 모듈은 `packages/**/src/**` 글롭으로 자동 포함(app lib는 vitest.config.ts coverage.include에 개별 등록 — history.ts 등록됨). `@ted-speak/shared` alias 제거 금지(`@ted-speak/content`·`@/`는 vitest alias 없음 → 테스트 대상 lib는 그 둘을 런타임 import 금지, 타입 only는 가능)
 - **실행/검증 경로(세션 11 확정)**: ① **웹** — `cd apps/mobile && npx expo start --web --port 8082`(8081은 ted_duolingo 점유) → 로그인 화면 "Dev Mock 로그인"으로 전 플로우 확인 가능, 화면/UX 검증용. ② **Expo Go 불가** — SDK 56 미지원(버전 불일치). ③ **네이티브/음성** — EAS dev build(실기기 APK, 권장) 또는 Android Studio 에뮬레이터 필요. 맥엔 전체 Xcode·Android SDK 둘 다 없음(CLT만). 터널 모드는 `@expo/ngrok` 전역 설치돼 있음(`--tunnel`)
-- **repo 공개·시크릿 게이트(세션 12)**: repo는 이제 **public**. CI에 gitleaks `secrets` 잡 추가(push·PR마다 `fetch-depth:0` 전체 히스토리 스캔, 발견 시 실패) + `.gitleaks.toml`(데모 키 allowlist) + `npm run secrets:scan`. 전체 히스토리 스캔 결과 진짜 시크릿 0건 확인. **새 시크릿을 커밋하면 CI가 차단**하므로 실키는 계속 .env(gitignore)에만. gitleaks 로컬 설치는 `brew install gitleaks`
-- **미커밋 작업**: 없음 — 세션 12 repo 공개+시크릿 스캔(CHANGELOG·HANDOFF·.gitleaks.toml·ci.yml·package.json) 커밋이 이 세션 유일 변경(앱 코드 0). 직전 origin/main(`be482e4`, 세션 11 인수인계) 동기화 완료
+- **repo 공개·시크릿 게이트(세션 12)**: repo는 이제 **public**. CI에 gitleaks `secrets` 잡 추가(push·PR마다 `fetch-depth:0` 전체 히스토리 스캔, 발견 시 실패) + `.gitleaks.toml`(데모 키 allowlist) + `npm run secrets:scan`. 전체 히스토리 스캔 결과 진짜 시크릿 0건 확인. **새 시크릿을 커밋하면 CI가 차단**하므로 실키는 계속 .env(gitignore)에만. gitleaks 로컬 설치는 `brew install gitleaks`. **Node24 대비**: `gitleaks-action@v2`가 Node20 타깃이라 GitHub의 2026-06-16 강제 전환 대비로 `secrets` 잡에 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24:"true"` env 설정(`870ea45`) — 현재 Node24에서 정상 실행 확인. 액션이 Node24 지원 버전을 내면 이 env 제거 가능
+- **미커밋 작업**: 없음 — 세션 12는 두 커밋(repo 공개+시크릿 스캔 `cde95f0` / CI Node24 전환 `870ea45`)이 유일 변경(앱 코드 0). 이 인수인계 갱신 커밋만 푸시하면 origin 동기화 완료. 직전 origin/main은 `be482e4`(세션 11 인수인계)였음

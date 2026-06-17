@@ -13,6 +13,8 @@
 - **CI `secrets` 잡** (`.github/workflows/ci.yml`) — push·PR마다 `gitleaks/gitleaks-action@v2`로 `fetch-depth:0`
   전체 히스토리 스캔. 시크릿 발견 시 빌드 실패. 개인 계정이라 라이선스 불필요(무료).
 - **로컬 스캔 스크립트** (`package.json`) — `npm run secrets:scan`(`gitleaks detect --config .gitleaks.toml --redact`).
+- **CI Node24 전환**(`870ea45`) — `secrets` 잡에 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24:"true"` env. `gitleaks-action@v2`가
+  Node20 타깃이라 GitHub의 2026-06-16 강제 전환 대비. Node24에서 정상 실행 확인(액션 Node24 지원 시 env 제거 가능).
 
 ### 검증 (시크릿 노출 점검)
 - 전체 커밋 히스토리(31커밋) gitleaks 스캔 → **no leaks found**. 실제 OpenAI 키(`sk-...`)·`.env`·AWS(`AKIA`)·
