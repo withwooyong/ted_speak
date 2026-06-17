@@ -21,6 +21,8 @@ jobs:
 
   secrets:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"   # gitleaks-action@v2 Node20 deprecation 대비
     steps:
       - uses: actions/checkout@v5
         with:
