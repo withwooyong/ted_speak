@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## 2026-06-17 (세션 12) — repo 공개 전환 + 시크릿 스캔 도입 (앱 코드 변경 없음)
+
+목적: GitHub repo를 public으로 전환하고, 노출 시크릿 점검 + 재발 방지 게이트 추가. **앱/스키마 변경 없음**.
+
+### Changed
+- **repo 가시성 PRIVATE → PUBLIC** — `gh repo edit withwooyong/ted_speak --visibility public`. 전체 코드·커밋 히스토리 공개.
+
+### Added
+- **gitleaks 시크릿 스캔 도입** (`.gitleaks.toml` 신규) — 기본 룰셋(`useDefault`) + Supabase 로컬 데모 키
+  allowlist(header+`iss:supabase-demo` prefix 정규식). 데모 JWT는 모든 설치 공통 공개 기본키(localhost 전용)라 예외 처리.
+- **CI `secrets` 잡** (`.github/workflows/ci.yml`) — push·PR마다 `gitleaks/gitleaks-action@v2`로 `fetch-depth:0`
+  전체 히스토리 스캔. 시크릿 발견 시 빌드 실패. 개인 계정이라 라이선스 불필요(무료).
+- **로컬 스캔 스크립트** (`package.json`) — `npm run secrets:scan`(`gitleaks detect --config .gitleaks.toml --redact`).
+
+### 검증 (시크릿 노출 점검)
+- 전체 커밋 히스토리(31커밋) gitleaks 스캔 → **no leaks found**. 실제 OpenAI 키(`sk-...`)·`.env`·AWS(`AKIA`)·
+  GitHub 토큰·Google(`AIza`)·PEM 모두 **0건**. 검출된 `eyJ...` JWT 2종은 Supabase **로컬 데모 키**(공개 기본키, 실
+  프로젝트 무효)로 확인 — `scripts/verify-rls.mts` 한정. `service_role` 다수 매치는 RLS 보안 모델 설명 주석/문서.
+- **결론**: 진짜 시크릿 노출 없음 → 키 폐기·히스토리 재작성 불필요. CLAUDE.md "API 키 앱 번들 미내장" 원칙 준수 확인.
+
 ## 2026-06-15 (세션 11) — 앱 실행 검증 (코드 변경 없음)
 
 목적: 실제 앱을 띄워 동작 확인. **코드/스키마 변경 없음** — 검증·환경 점검 + 인수인계 갱신만.

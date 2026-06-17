@@ -1,0 +1,13 @@
+# gitleaks 설정 — 기본 룰셋 + 프로젝트 예외
+# 로컬: npm run secrets:scan / CI: .github/workflows/ci.yml의 secrets 잡
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Supabase 로컬 데모 키 — 모든 설치에 동일한 공개 기본키(localhost 전용, 실 프로젝트엔 무효). CLAUDE.md 'anon key는 RLS 전제의 공개 키' 원칙."
+regexTarget = "match"
+regexes = [
+  # anon·service_role 데모 JWT 공통 prefix (header + iss:supabase-demo)
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZS1kZW1v''',
+]

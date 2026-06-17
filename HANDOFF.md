@@ -1,21 +1,20 @@
 # Session Handoff — Ted Speak (TalkTed)
 
-> Last updated: 2026-06-15 (KST) · 세션 11
-> Branch: `main` (origin: github.com/withwooyong/ted_speak, private)
-> Latest commit: 세션 11 인수인계(이 커밋) · 직전 origin/main `c05e894`(세션 10 인수인계) · **푸시 예정**
+> Last updated: 2026-06-17 (KST) · 세션 12
+> Branch: `main` (origin: github.com/withwooyong/ted_speak, **public**)
+> Latest commit: 세션 12 repo 공개+시크릿 스캔(이 커밋) · 직전 origin/main `be482e4`(세션 11 인수인계) · **푸시 예정**
 
 ## Current Status
 
-**세션 11은 앱 실행 검증 세션 — 코드/스키마 변경 없음**. 실제 앱을 띄워 동작을 확인했다.
+**세션 12는 repo 공개 전환 + 시크릿 스캔 도입 세션 — 앱/스키마 변경 없음**.
 
-- **웹 구동 정상**: `expo start --web`(:8082)로 로그인 → Dev Mock → 온보딩 4단계 → 홈 → 레슨(LEARN)
-  전 플로우 동작, 콘솔/페이지 에러 0. AI 키·Supabase 미설정이라 안내 배너 + Dev Mock Auth(의도된 fallback).
-- **Expo Go(안드로이드 실기기) 차단**: 프로젝트 Expo **SDK 56**(RN 0.85.3·React 19.2)을 Play 스토어
-  Expo Go가 미지원 → **SDK 버전 불일치 오류**. Expo Go 경로 불가(터널로도 SDK 불일치는 동일).
-- **로컬 네이티브 불가**: 맥에 전체 Xcode 없음(CLT만)·Android SDK 없음 → `expo run:ios/android`·
-  iOS 시뮬레이터·안드로이드 에뮬레이터 모두 불가.
-- **결론**: 네이티브/음성 검증은 **EAS development build**(실기기 APK, 권장) 또는 Android Studio 필요.
-  빠른 화면/플로우 확인은 웹으로 충분. (상세: CHANGELOG 세션 11 / In Progress #2)
+- **repo PRIVATE → PUBLIC**: `withwooyong/ted_speak`를 사용자 요청으로 public 전환. 전체 코드·커밋 히스토리 공개.
+- **시크릿 노출 점검 — 안전 확인**: 전체 히스토리(31커밋) gitleaks 스캔 → **no leaks found**. 실제 OpenAI 키·
+  `.env`·AWS·GitHub 토큰·Google·PEM **0건**. 검출된 `eyJ...` JWT 2종은 Supabase **로컬 데모 키**(공개 기본키,
+  `scripts/verify-rls.mts` 한정). 키 폐기·히스토리 재작성 **불필요**.
+- **재발 방지 게이트 추가**: `.gitleaks.toml`(기본 룰셋+데모 키 allowlist) + CI `secrets` 잡(push·PR마다 전체
+  히스토리 스캔, 발견 시 빌드 실패) + `npm run secrets:scan` 로컬 스크립트. gitleaks로 실동작 검증 완료.
+- **결론**: 공개 상태 그대로 안전. 향후 진짜 시크릿 커밋 시 CI가 차단. (상세: CHANGELOG 세션 12)
 
 ---
 
@@ -39,7 +38,15 @@ vitest **446**(419→+27), 커버리지 95.61/85.03/98.11/97.79(게이트 80), E
 
 코드 측은 P1+P1.5+W1+W2+W3+W4+W5+W5b+W6 완료. 남은 건 실기기 검증·U11 OAuth·라이브 전송(dev build)·W7~다.
 
-## Completed This Session (세션 10)
+## Completed This Session (세션 12)
+
+| # | Task | Files |
+|---|------|-------|
+| 1 | **repo 공개 전환** — PRIVATE → PUBLIC (`gh repo edit --visibility public`) | (GitHub 설정) |
+| 2 | **시크릿 노출 점검** — 전체 히스토리 31커밋 gitleaks 스캔 → no leaks. 실제 키 0건, 검출 JWT는 Supabase 로컬 데모 키로 확인 | (검증) |
+| 3 | **gitleaks 도입** — 기본 룰셋+데모 키 allowlist, CI secrets 잡(전체 히스토리 스캔), 로컬 `npm run secrets:scan` | .gitleaks.toml(신규), .github/workflows/ci.yml, package.json |
+
+## Completed (세션 10 — 직전 코드 작업: W6 주간 리포트)
 
 | # | Task | Files |
 |---|------|-------|
@@ -133,4 +140,5 @@ vitest **446**(419→+27), 커버리지 95.61/85.03/98.11/97.79(게이트 80), E
 - **제약·선호**: 커밋 한글, **푸시는 명시 요청 시에만**, StyleSheet+토큰만(인라인 hex 금지), zod z.infer 단일 출처, 새 컬럼은 grant 화이트리스트 검토, 스키마 변경은 보안 민감 ted-run. **품질 우선 — 가짜 점수/지표 출시 안 함(ADR-0010 선례)**. 신규 화면 비동기 로드는 TanStack Query 패턴(수동 fetch-in-effect는 lint 차단). **Expo 타입드 라우트**: 새 라우트 추가 시 `.expo/types/router.d.ts` stale → typecheck 실패, expo web 한 번 띄워 번들(curl)하면 typegen 재생성
 - **테스트 인프라**: vitest 419개·커버리지 95.43/84.81/97.89/97.64%(게이트 80). 신규 순수 모듈은 `packages/**/src/**` 글롭으로 자동 포함(app lib는 vitest.config.ts coverage.include에 개별 등록 — history.ts 등록됨). `@ted-speak/shared` alias 제거 금지(`@ted-speak/content`·`@/`는 vitest alias 없음 → 테스트 대상 lib는 그 둘을 런타임 import 금지, 타입 only는 가능)
 - **실행/검증 경로(세션 11 확정)**: ① **웹** — `cd apps/mobile && npx expo start --web --port 8082`(8081은 ted_duolingo 점유) → 로그인 화면 "Dev Mock 로그인"으로 전 플로우 확인 가능, 화면/UX 검증용. ② **Expo Go 불가** — SDK 56 미지원(버전 불일치). ③ **네이티브/음성** — EAS dev build(실기기 APK, 권장) 또는 Android Studio 에뮬레이터 필요. 맥엔 전체 Xcode·Android SDK 둘 다 없음(CLT만). 터널 모드는 `@expo/ngrok` 전역 설치돼 있음(`--tunnel`)
-- **미커밋 작업**: 없음 — 세션 11 인수인계(CHANGELOG·HANDOFF) 커밋이 이 세션 유일 변경(코드 변경 0). 직전까지 origin/main(`c05e894`) 동기화 완료
+- **repo 공개·시크릿 게이트(세션 12)**: repo는 이제 **public**. CI에 gitleaks `secrets` 잡 추가(push·PR마다 `fetch-depth:0` 전체 히스토리 스캔, 발견 시 실패) + `.gitleaks.toml`(데모 키 allowlist) + `npm run secrets:scan`. 전체 히스토리 스캔 결과 진짜 시크릿 0건 확인. **새 시크릿을 커밋하면 CI가 차단**하므로 실키는 계속 .env(gitignore)에만. gitleaks 로컬 설치는 `brew install gitleaks`
+- **미커밋 작업**: 없음 — 세션 12 repo 공개+시크릿 스캔(CHANGELOG·HANDOFF·.gitleaks.toml·ci.yml·package.json) 커밋이 이 세션 유일 변경(앱 코드 0). 직전 origin/main(`be482e4`, 세션 11 인수인계) 동기화 완료

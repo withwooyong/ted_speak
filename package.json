@@ -16,6 +16,7 @@
     "validate:content": "vitest run packages/shared/test/content-schema.test.ts",
     "generate:seed": "tsx scripts/generate-seed.mts",
     "lint": "npm run lint -w talkted-mobile",
+    "secrets:scan": "gitleaks detect --source . --config .gitleaks.toml --redact --verbose",
     "ci": "npm run typecheck && npm run lint && npm run test:coverage"
   },
   "devDependencies": {
